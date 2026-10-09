@@ -1,342 +1,342 @@
-# Audio Configuration Summary - Arduino UNO Q
+# 音频配置总结 - Arduino UNO Q
 
-**Date:** February 2026
-**System:** Arduino UNO Q (QRB2210 SoC)
-**Codec:** PM4125 PMIC Audio Codec
-**Status:** ✅ Fully Functional (Playback & Recording)
-
----
-
-## Executive Summary
-
-Audio on the Arduino UNO Q is **fully functional** with the base DTB configuration. However, the system requires **explicit ALSA mixer configuration** to route signals from the software pipeline to physical outputs.
-
-**Key Finding:** The codec is pre-configured in device tree, but signal routing between the Q6 audio DSP and the physical headphone/microphone connectors requires user-space ALSA mixer settings.
+**日期：** 2026 年 2 月
+**系统：** Arduino UNO Q (QRB2210 SoC)
+**编解码器：** PM4125 PMIC 音频编解码器
+**状态：** ✅ 功能完全正常（播放和录音）
 
 ---
 
-## System Architecture
+## 概述
 
-### Hardware Components
+在基础 DTB 配置下，Arduino UNO Q 的音频功能**完全正常**。但是，系统需要**显式配置 ALSA 混音器**，才能将信号从软件管线传送到物理输出端。
+
+**关键发现：** 编解码器已在设备树中预先配置，但 Q6 音频 DSP 与物理耳机/麦克风连接器之间的信号路由需要在用户空间中设置 ALSA 混音器。
+
+---
+
+## 系统架构
+
+### 硬件组件
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│            QRB2210 Audio Subsystem                      │
+│            QRB2210 音频子系统                           │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
-│  Linux Kernel Domain                                    │
-│  ├─ ALSA (Advanced Linux Sound Architecture)            │
-│  │  └─ ALSA Mixer (control interface)                  │
+│  Linux 内核域                                           │
+│  ├─ ALSA（高级 Linux 声音架构）                         │
+│  │  └─ ALSA 混音器（控制接口）                         │
 │  │                                                      │
-│  └─ APR (Audio Packet Router)                          │
-│     └─ IPC Bridge to ADSP                              │
+│  └─ APR（音频数据包路由器）                            │
+│     └─ 通往 ADSP 的 IPC 桥                             │
 │                                                         │
-│  ADSP (Audio DSP) Domain                               │
-│  ├─ Q6ASM (Audio Stream Manager)                       │
-│  ├─ Q6AFE (Audio Front End)                            │
-│  ├─ Q6ADM (Audio Device Manager)                       │
+│  ADSP（音频 DSP）域                                    │
+│  ├─ Q6ASM（音频流管理器）                              │
+│  ├─ Q6AFE（音频前端）                                  │
+│  ├─ Q6ADM（音频设备管理器）                            │
 │  │                                                      │
-│  └─ LPASS (Low Power Audio SubSystem)                  │
-│     └─ RX/TX Macros (codec interface)                  │
+│  └─ LPASS（低功耗音频子系统）                          │
+│     └─ RX/TX Macro（编解码器接口）                     │
 │                                                         │
-│  Codec Domain                                           │
-│  └─ PM4125 PMIC (integrated codec)                     │
-│     ├─ RX Path (Playback): HPH_L, HPH_R, LO           │
-│     └─ TX Path (Record): AMIC1, AMIC2, AMIC3, DMIC    │
+│  编解码器域                                             │
+│  └─ PM4125 PMIC（集成编解码器）                        │
+│     ├─ RX 路径（播放）：HPH_L, HPH_R, LO               │
+│     └─ TX 路径（录音）：AMIC1, AMIC2, AMIC3, DMIC      │
 │                                                         │
-│  Physical I/O                                           │
-│  ├─ Headphones (HPH_L, HPH_R) → JMISC pins 36, 38     │
-│  └─ Microphone (AMIC2) → JMISC pins 29, 31, 33        │
+│  物理 I/O                                               │
+│  ├─ 耳机 (HPH_L, HPH_R) → JMISC 引脚 36, 38            │
+│  └─ 麦克风 (AMIC2) → JMISC 引脚 29, 31, 33             │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Signal Flow - Playback
+### 信号流 - 播放
 
 ```
-Application (e.g., aplay)
+应用程序（例如 aplay）
     ↓
-/dev/snd/pcmC0D0p (PCM Device)
+/dev/snd/pcmC0D0p（PCM 设备）
     ↓
-ALSA PCM Subsystem
+ALSA PCM 子系统
     ↓
-Q6ASM (via APR/ADSP IPC)
+Q6ASM（通过 APR/ADSP IPC）
     ↓
-RX_CODEC_DMA_RX_0 (ALSA mixer point)
+RX_CODEC_DMA_RX_0（ALSA 混音节点）
     ↓
-LPASS RX Macro (receives AIF1_PB signal)
+LPASS RX Macro（接收 AIF1_PB 信号）
     ↓
-RX Interpolators (INT0_1, INT1_1)
-    ├─ MIX1 (mixer stage)
-    └─ INTERP (interpolator)
+RX 插值器 (INT0_1, INT1_1)
+    ├─ MIX1（混音级）
+    └─ INTERP（插值器）
     ↓
-Demodulator (DEM MUX → CLSH_DSM_OUT)
+解调器（DEM MUX → CLSH_DSM_OUT）
     ↓
-Right DAC (RDAC Switch)
+右 DAC（RDAC Switch）
     ↓
-HPHL / HPHR Output Switches
+HPHL / HPHR 输出开关
     ↓
-Headphone Connector (JMISC 36, 38)
+耳机连接器 (JMISC 36, 38)
 ```
 
-### Signal Flow - Recording
+### 信号流 - 录音
 
 ```
-Microphone (JMISC pins 29, 31, 33)
+麦克风（JMISC 引脚 29, 31, 33）
     ↓
-AMIC2 Input (with MIC BIAS2 = 1.8V)
+AMIC2 输入（MIC BIAS2 = 1.8V）
     ↓
-TX Path (Codec internal)
+TX 路径（编解码器内部）
     ↓
 LPASS TX Macro
     ↓
 Q6ADM / Q6AFE
     ↓
-Q6ASM (Stream Manager)
+Q6ASM（流管理器）
     ↓
-/dev/snd/pcmC0D0c (PCM Capture Device)
+/dev/snd/pcmC0D0c（PCM 采集设备）
     ↓
-ALSA Capture Subsystem
+ALSA 采集子系统
     ↓
-Application (e.g., arecord)
+应用程序（例如 arecord）
 ```
 
 ---
 
-## Configuration Discovery Process
+## 配置探索过程
 
-### Initial Issue
+### 初始问题
 
-**Symptom:** Sound card detected (`cat /proc/asound/cards` shows "Snapdragon Audio"), but playback fails:
+**症状：** 已检测到声卡（`cat /proc/asound/cards` 显示 "Snapdragon Audio"），但播放失败：
 ```
 $ aplay test.wav
 ALSA lib confmisc.c:... unknown PCM default:0
 Playback open error: -22, Invalid argument
 ```
 
-**Root Cause:** ALSA routing chain not configured - signal blocked at first mixer point.
+**根本原因：** 未配置 ALSA 路由链，信号在第一个混音节点处被阻断。
 
-### Investigation Steps
+### 调查步骤
 
-1. **Verified sound services running:**
+1. **确认声音服务正在运行：**
    ```bash
    $ ps aux | grep q6
    root      1234  0.0  0.1 ... /lib/firmware/qcom/qrb2210/adsp.mbn
    ```
-   ✓ Q6 audio services active
+   ✓ Q6 音频服务处于活动状态
 
-2. **Identified hardware configuration:**
+2. **识别硬件配置：**
    ```bash
    $ cat /proc/asound/card0/codec#0 | grep -i "hph\|amic\|mixer"
    ```
-   ✓ All codec features available
+   ✓ 所有编解码器功能均可用
 
-3. **Examined mixer structure:**
+3. **检查混音器结构：**
    ```bash
    $ amixer -c 0 contents | wc -l
-   847  # 847 mixer controls available
+   847  # 有 847 个混音器控件可用
    ```
-   ✓ Extensive mixer available, but defaults set to "ZERO" (disconnected)
+   ✓ 提供了丰富的混音器控件，但默认值设为 "ZERO"（未连接）
 
-4. **Traced audio with strace:**
+4. **使用 strace 跟踪音频：**
    ```bash
    $ strace -e openat aplay test.wav 2>&1 | grep "pcm"
    openat(..."/dev/snd/pcmC0D0p") = -1 EINVAL
    ```
-   ✓ Confirmed PCM device not available due to routing
+   ✓ 确认 PCM 设备因路由问题而不可用
 
-### Solution Development
+### 解决方案形成过程
 
-Through systematic configuration of ALSA mixer controls, discovered the correct signal flow:
+通过系统配置 ALSA 混音器控件，确定了正确的信号流：
 
-1. **Enable codec data mux** → `RX_CODEC_DMA_RX_0 Audio Mixer MultiMedia1 = 1`
-2. **Select AIF1 Playback** → `RX_MACRO RX0/RX1 MUX = AIF1_PB`
-3. **Configure interpolators** → Select MIX1 as input source and output
-4. **Enable demodulator** → Route to `CLSH_DSM_OUT`
-5. **Enable RDAC** → Activate right DAC for each channel
-6. **Unmute outputs** → Enable HPHL/HPHR switches and set level
+1. **启用编解码器数据多路复用器** → `RX_CODEC_DMA_RX_0 Audio Mixer MultiMedia1 = 1`
+2. **选择 AIF1 播放** → `RX_MACRO RX0/RX1 MUX = AIF1_PB`
+3. **配置插值器** → 选择 MIX1 作为输入源和输出
+4. **启用解调器** → 路由至 `CLSH_DSM_OUT`
+5. **启用 RDAC** → 激活各声道的右 DAC
+6. **取消输出静音** → 启用 HPHL/HPHR 开关并设置电平
 
 ---
 
-## Working Configuration
+## 可用配置
 
-### Headphone Output (Tested ✅)
+### 耳机输出（已测试 ✅）
 
-**Complete Configuration Command Set:**
+**完整配置命令集：**
 
 ```bash
 #!/bin/bash
-# Audio routing
+# 音频路由
 amixer -c 0 cset name='RX_CODEC_DMA_RX_0 Audio Mixer MultiMedia1' 1
 
-# LPASS interface
+# LPASS 接口
 amixer -c 0 cset name='RX_MACRO RX0 MUX' 'AIF1_PB'
 amixer -c 0 cset name='RX_MACRO RX1 MUX' 'AIF1_PB'
 
-# Interpolators (path to DAC)
+# 插值器（通往 DAC 的路径）
 amixer -c 0 cset name='RX INT0_1 MIX1 INP0' 'RX0'
 amixer -c 0 cset name='RX INT1_1 MIX1 INP0' 'RX1'
 amixer -c 0 cset name='RX INT0_1 INTERP' 'RX INT0_1 MIX1'
 amixer -c 0 cset name='RX INT1_1 INTERP' 'RX INT1_1 MIX1'
 
-# Demodulator and DAC
+# 解调器和 DAC
 amixer -c 0 cset name='RX INT0 DEM MUX' 'CLSH_DSM_OUT'
 amixer -c 0 cset name='RX INT1 DEM MUX' 'CLSH_DSM_OUT'
 amixer -c 0 cset name='HPHL_RDAC Switch' 1
 amixer -c 0 cset name='HPHR_RDAC Switch' 1
 
-# Output enable and level
+# 启用输出并设置电平
 amixer -c 0 cset name='HPHL Switch' 1
 amixer -c 0 cset name='HPHR Switch' 1
 amixer -c 0 set 'Headphone' 80%
 ```
 
-**Test Command:**
+**测试命令：**
 ```bash
 speaker-test -c 2 -t sine -f 440 -l 2
 ```
 
-**Result:** ✅ Clear 440 Hz sine wave tone audible from headphones
+**结果：** ✅ 可从耳机中清晰听到 440 Hz 正弦波音调
 
-### Microphone Input (Configured ✅)
+### 麦克风输入（已配置 ✅）
 
-**Configuration Command Set:**
+**配置命令集：**
 
 ```bash
 #!/bin/bash
-# Enable microphone bias (automatic 1.8V)
+# 启用麦克风偏置（自动设为 1.8V）
 amixer -c 0 set 'MIC BIAS2' on
 
-# Set input gain (0-31, range)
-amixer -c 0 set 'Mic' 15  # Start conservative, adjust 0-31
+# 设置输入增益（范围 0-31）
+amixer -c 0 set 'Mic' 15  # 从较低值开始，可在 0-31 之间调整
 ```
 
-**Test Commands:**
+**测试命令：**
 
 ```bash
-# Record 5 seconds
+# 录制 5 秒
 arecord -d 5 -f cd -t wav test.wav
 
-# Play back recording
+# 播放录音
 aplay test.wav
 
-# Real-time monitoring (Ctrl+C to stop)
+# 实时监听（按 Ctrl+C 停止）
 arecord -f cd | aplay
 ```
 
-**Gain Reference:**
-- 0-5: Very quiet (use for loud sources)
-- 10-15: Balanced (normal speaking distance)
-- 20-25: Sensitive (quiet speaking)
-- 30-31: Maximum (barely audible whispers)
+**增益参考：**
+- 0-5：非常低（用于响亮的声源）
+- 10-15：均衡（正常说话距离）
+- 20-25：灵敏（轻声说话）
+- 30-31：最大（几乎听不见的耳语）
 
-### Integration: Both Playback and Recording
+### 集成：同时播放和录音
 
-The configuration supports **simultaneous playback and recording** without conflicts:
+此配置支持**同时播放和录音**，且不会发生冲突：
 
 ```bash
-# Terminal 1: Record background audio
+# 终端 1：录制背景音频
 arecord -d 30 background.wav
 
-# Terminal 2: Play audio while recording
+# 终端 2：在录音的同时播放音频
 aplay music.wav
 ```
 
-Both operations work independently - `RX` (playback) and `TX` (recording) paths are separate.
+两项操作相互独立，`RX`（播放）和 `TX`（录音）路径彼此分离。
 
 ---
 
-## ALSA Mixer Control Reference
+## ALSA 混音器控件参考
 
-### Playback Signal Chain
+### 播放信号链
 
-| Control | Type | Values | Purpose |
+| 控件 | 类型 | 值 | 用途 |
 |---------|------|--------|---------|
-| `RX_CODEC_DMA_RX_0 Audio Mixer MultiMedia1` | Switch | 0/1 | Enable audio mux from Q6ASM |
-| `RX_MACRO RX0 MUX` | Enum | AIF1_PB, ZERO | Select playback source |
-| `RX_MACRO RX1 MUX` | Enum | AIF1_PB, ZERO | Select playback source (R channel) |
-| `RX INT0_1 MIX1 INP0` | Enum | RX0, ZERO | Route RX0 to interpolator mixer |
-| `RX INT1_1 MIX1 INP0` | Enum | RX1, ZERO | Route RX1 to interpolator mixer |
-| `RX INT0_1 INTERP` | Enum | RX INT0_1 MIX1, ZERO | Enable interpolation for L channel |
-| `RX INT1_1 INTERP` | Enum | RX INT1_1 MIX1, ZERO | Enable interpolation for R channel |
-| `RX INT0 DEM MUX` | Enum | CLSH_DSM_OUT, ZERO | Connect to demodulator |
-| `RX INT1 DEM MUX` | Enum | CLSH_DSM_OUT, ZERO | Connect to demodulator |
-| `HPHL_RDAC Switch` | Boolean | on/off | Enable Left DAC |
-| `HPHR_RDAC Switch` | Boolean | on/off | Enable Right DAC |
-| `HPHL Switch` | Boolean | on/off | Enable Left headphone output |
-| `HPHR Switch` | Boolean | on/off | Enable Right headphone output |
-| `Headphone` | Volume | 0-100% | Master headphone level |
+| `RX_CODEC_DMA_RX_0 Audio Mixer MultiMedia1` | 开关 | 0/1 | 启用来自 Q6ASM 的音频多路复用器 |
+| `RX_MACRO RX0 MUX` | 枚举 | AIF1_PB, ZERO | 选择播放源 |
+| `RX_MACRO RX1 MUX` | 枚举 | AIF1_PB, ZERO | 选择播放源（右声道） |
+| `RX INT0_1 MIX1 INP0` | 枚举 | RX0, ZERO | 将 RX0 路由至插值器混音器 |
+| `RX INT1_1 MIX1 INP0` | 枚举 | RX1, ZERO | 将 RX1 路由至插值器混音器 |
+| `RX INT0_1 INTERP` | 枚举 | RX INT0_1 MIX1, ZERO | 启用左声道插值 |
+| `RX INT1_1 INTERP` | 枚举 | RX INT1_1 MIX1, ZERO | 启用右声道插值 |
+| `RX INT0 DEM MUX` | 枚举 | CLSH_DSM_OUT, ZERO | 连接至解调器 |
+| `RX INT1 DEM MUX` | 枚举 | CLSH_DSM_OUT, ZERO | 连接至解调器 |
+| `HPHL_RDAC Switch` | 布尔值 | on/off | 启用左 DAC |
+| `HPHR_RDAC Switch` | 布尔值 | on/off | 启用右 DAC |
+| `HPHL Switch` | 布尔值 | on/off | 启用左耳机输出 |
+| `HPHR Switch` | 布尔值 | on/off | 启用右耳机输出 |
+| `Headphone` | 音量 | 0-100% | 耳机主电平 |
 
-### Recording Signal Chain
+### 录音信号链
 
-| Control | Type | Values | Purpose |
+| 控件 | 类型 | 值 | 用途 |
 |---------|------|--------|---------|
-| `MIC BIAS2` | Boolean | on/off | Enable 1.8V bias for AMIC2 |
-| `Mic` | Volume | 0-31 | Input gain for microphone |
+| `MIC BIAS2` | 布尔值 | on/off | 为 AMIC2 启用 1.8V 偏置 |
+| `Mic` | 音量 | 0-31 | 麦克风输入增益 |
 
 ---
 
-## Critical Findings
+## 关键发现
 
-### 1. Device Tree is Pre-Configured
+### 1. 设备树已预先配置
 
-The Arduino UNO Q base DTB includes:
-- ✅ PM4125 codec defined with all power supplies
-- ✅ LPASS audio subsystem enabled
-- ✅ Q6 audio DSP configured
-- ✅ APR (Audio Packet Router) configured
+Arduino UNO Q 基础 DTB 包含：
+- ✅ 已定义 PM4125 编解码器及其所有电源
+- ✅ 已启用 LPASS 音频子系统
+- ✅ 已配置 Q6 音频 DSP
+- ✅ 已配置 APR（音频数据包路由器）
 
-**No DTS changes required** - audio works immediately after configuration.
+**无需更改 DTS**，完成配置后音频即可工作。
 
-### 2. Routing is User-Configurable
+### 2. 路由可由用户配置
 
-Unlike Raspberry Pi (fixed routing via DTB), Arduino UNO Q uses **runtime ALSA mixer configuration**. This is:
-- ✅ More flexible (can change routing without reboot)
-- ✅ Discoverable via `/proc/asound/` and `amixer`
-- ❌ Requires manual setup after each boot
+与 Raspberry Pi（通过 DTB 固定路由）不同，Arduino UNO Q 使用**运行时 ALSA 混音器配置**。其特点如下：
+- ✅ 更灵活（无需重启即可更改路由）
+- ✅ 可通过 `/proc/asound/` 和 `amixer` 查看
+- ❌ 每次启动后都需要手动设置
 
-### 3. Default Mixer State Blocks Audio
+### 3. 混音器默认状态会阻断音频
 
-All playback and recording paths default to "ZERO" (disabled):
+所有播放和录音路径的默认值均为 "ZERO"（禁用）：
 
 ```bash
 $ amixer -c 0 cget name='RX_CODEC_DMA_RX_0 Audio Mixer MultiMedia1'
 numid=12,iface=MIXER,name='RX_CODEC_DMA_RX_0 Audio Mixer MultiMedia1'
   ; type=BOOLEAN,access=rw------,values=1
-  : values=0  # <-- DEFAULT IS OFF
+  : values=0  # <-- 默认关闭
 ```
 
-This is safe (prevents unexpected noise) but requires user configuration.
+这样更安全（可防止意外噪声），但需要用户进行配置。
 
-### 4. APR Initialization Timing
+### 4. APR 初始化时机
 
-APR (Audio Packet Router) requires proper initialization:
-- ✅ Initializes on first audio device access
-- ✅ Creates `/dev/snd/` entries dynamically
-- ⚠️ May require reboot if device changes
+APR（音频数据包路由器）需要正确初始化：
+- ✅ 首次访问音频设备时初始化
+- ✅ 动态创建 `/dev/snd/` 条目
+- ⚠️ 设备发生变化时可能需要重启
 
-**Workaround:** Clean reboot after enabling audio.
+**解决方法：** 启用音频后进行一次正常重启。
 
-### 5. 48kHz Native Sample Rate
+### 5. 48kHz 原生采样率
 
-The PM4125 codec and Q6 subsystem operate natively at 48kHz:
-- ✅ Hardware optimized for 48kHz operation
-- ✅ 44.1kHz supported (via SRC resampling)
-- ℹ️ 48kHz provides lowest latency
+PM4125 编解码器和 Q6 子系统原生以 48kHz 运行：
+- ✅ 硬件针对 48kHz 运行进行了优化
+- ✅ 支持 44.1kHz（通过 SRC 重采样）
+- ℹ️ 48kHz 可提供最低延迟
 
 ---
 
-## Automation and Persistence
+## 自动化与持久化
 
-### Boot-Time Configuration
+### 启动时配置
 
-**Option 1: Systemd Service**
+**方案 1：Systemd 服务**
 
-Create `/etc/systemd/system/audio-config.service`:
+创建 `/etc/systemd/system/audio-config.service`：
 
 ```ini
 [Unit]
-Description=Configure Arduino UNO Q Audio
+Description=配置 Arduino UNO Q 音频
 After=sound.target
 Wants=sound.target
 
@@ -350,23 +350,23 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 ```
 
-Enable with:
+使用以下命令启用：
 ```bash
 sudo systemctl enable audio-config.service
 sudo systemctl start audio-config.service
 ```
 
-**Option 2: Shell Script in ~/.bashrc**
+**方案 2：在 ~/.bashrc 中使用 Shell 脚本**
 
 ```bash
-# Add to ~/.bashrc
+# 添加到 ~/.bashrc
 if [ -z "$AUDIO_CONFIGURED" ]; then
     /path/to/configure-audio.sh >/dev/null 2>&1 &
     export AUDIO_CONFIGURED=1
 fi
 ```
 
-**Option 3: Use Provided Script**
+**方案 3：使用提供的脚本**
 
 ```bash
 chmod +x scripts/configure-audio.sh
@@ -375,106 +375,106 @@ chmod +x scripts/configure-audio.sh
 
 ---
 
-## Troubleshooting Guide
+## 故障排查指南
 
-### Symptom: "No soundcards found"
+### 症状："No soundcards found"
 
-**Check 1: ADSP firmware loaded**
+**检查 1：ADSP 固件是否已加载**
 ```bash
 dmesg | grep -i "adsp\|remoteproc" | head -20
 ```
-Should show: `remoteproc0: Booted qcom,qrb2210-adsp-pil`
+应显示：`remoteproc0: Booted qcom,qrb2210-adsp-pil`
 
-**Fix:** Reboot system - APR initializes on first audio access.
+**修复：** 重启系统，APR 会在首次访问音频时初始化。
 
-### Symptom: Playback opens but no sound
+### 症状：播放可打开但没有声音
 
-**Check 1: Mixer settings**
+**检查 1：混音器设置**
 ```bash
 amixer -c 0 cget name='HPHL Switch'
-# Should show: values=1 (enabled)
+# 应显示：values=1（已启用）
 ```
 
-**Check 2: Headphone level**
+**检查 2：耳机电平**
 ```bash
 amixer -c 0 get Headphone
-# Should show: 80% or higher
+# 应显示：80% 或更高
 ```
 
-**Fix:** Run configuration script: `./scripts/configure-audio.sh`
+**修复：** 运行配置脚本：`./scripts/configure-audio.sh`
 
-### Symptom: Microphone records but very quiet
+### 症状：麦克风可以录音但音量很低
 
-**Check 1: Bias enabled**
+**检查 1：是否已启用偏置**
 ```bash
 amixer -c 0 cget name='MIC BIAS2'
-# Should show: values=1 (on)
+# 应显示：values=1（开启）
 ```
 
-**Check 2: Input gain**
+**检查 2：输入增益**
 ```bash
 amixer -c 0 cget name='Mic'
-# Increase value if too quiet (range 0-31)
+# 如果音量太低则增大数值（范围 0-31）
 amixer -c 0 set 'Mic' 25
 ```
 
-**Fix:** Increase gain and verify microphone connector.
+**修复：** 增大增益并检查麦克风连接器。
 
-### Symptom: Crackling or distortion
+### 症状：爆音或失真
 
-**Possible Causes:**
-1. **Gain too high** → Reduce with `amixer -c 0 set 'Mic' 10`
-2. **Volume clipping** → Reduce headphone level to 70%
-3. **CPU overload** → Close other applications
-4. **Cable interference** → Check JMISC cable seating
+**可能的原因：**
+1. **增益过高** → 使用 `amixer -c 0 set 'Mic' 10` 降低增益
+2. **音量削波** → 将耳机电平降至 70%
+3. **CPU 过载** → 关闭其他应用程序
+4. **线缆干扰** → 检查 JMISC 线缆是否插接到位
 
 ---
 
-## Performance Specifications
+## 性能规格
 
-### Latency
+### 延迟
 
-- PCM capture/playback latency: ~40-60ms (typical)
-- System load impact: <2% CPU at 48kHz stereo
+- PCM 采集/播放延迟：约 40-60ms（典型值）
+- 系统负载影响：48kHz 立体声时 CPU 占用率低于 2%
 
-### Sample Rates
+### 采样率
 
-| Rate | Status | Notes |
+| 采样率 | 状态 | 备注 |
 |------|--------|-------|
-| 44.1 kHz | ✅ Supported | Requires SRC resampling |
-| 48 kHz | ✅ Native | Optimal, no resampling |
-| 96 kHz | ⚠️ Limited | Not tested, may require codec changes |
-| 192 kHz | ❌ Unsupported | Codec limitation |
+| 44.1 kHz | ✅ 支持 | 需要 SRC 重采样 |
+| 48 kHz | ✅ 原生 | 最佳，无需重采样 |
+| 96 kHz | ⚠️ 受限 | 未测试，可能需要更改编解码器配置 |
+| 192 kHz | ❌ 不支持 | 受编解码器限制 |
 
-### Channel Count
+### 声道数
 
-- **Playback:** Stereo (2 channels) - both HPH_L and HPH_R
-- **Recording:** Mono (1 channel) - AMIC2 only
-  - Can record stereo with channel duplication in software
-
----
-
-## References and Documentation
-
-- **AUDIO-INTEGRATION-GUIDE.md** - Complete architecture and pin mapping
-- **README.md** - Quick reference for audio commands
-- **configure-audio.sh** - Automated configuration script
-- **PM4125 Codec Datasheet** - Signal routing details (if available)
+- **播放：** 立体声（2 声道），使用 HPH_L 和 HPH_R
+- **录音：** 单声道（1 声道），仅使用 AMIC2
+  - 可通过软件复制声道来录制立体声
 
 ---
 
-## Conclusion
+## 参考资料和文档
 
-The Arduino UNO Q provides **fully functional audio** through the PM4125 codec. While configuration requires explicit ALSA mixer setup, this approach provides:
-
-✅ Complete flexibility
-✅ Runtime reconfiguration without reboot
-✅ Separate independent playback and recording paths
-✅ Professional-grade audio quality (48kHz, 16-bit)
-
-**Key Takeaway:** Audio is hardware-ready; configure ALSA mixers once and enjoy full multimedia capabilities.
+- **AUDIO-INTEGRATION-GUIDE.md** - 完整架构和引脚映射
+- **README.md** - 音频命令快速参考
+- **configure-audio.sh** - 自动配置脚本
+- **PM4125 编解码器数据手册** - 信号路由详情（如有）
 
 ---
 
-**Last Updated:** February 2026
-**Tested On:** Arduino UNO Q (QRB2210) with Linux kernel 6.16.7
+## 结论
+
+Arduino UNO Q 通过 PM4125 编解码器提供**功能完整的音频**。虽然需要显式设置 ALSA 混音器，但这种方式具有以下优点：
+
+✅ 完全灵活
+✅ 无需重启即可在运行时重新配置
+✅ 相互独立的播放和录音路径
+✅ 专业级音频质量（48kHz、16 位）
+
+**要点：** 音频硬件已准备就绪；配置一次 ALSA 混音器即可使用完整的多媒体功能。
+
+---
+
+**最后更新：** 2026 年 2 月
+**测试平台：** Arduino UNO Q (QRB2210)，Linux 内核 6.16.7

@@ -7,11 +7,11 @@ height = 1080
 input_file = sys.argv[1] if len(sys.argv) > 1 else "capture.raw"
 output_file = input_file.replace('.raw', '.jpg')
 
-# Read packed 10-bit data
+# 读取打包的 10 位数据
 packed = np.fromfile(input_file, dtype=np.uint8)
-print(f"Read {len(packed)} bytes, Min:{packed.min()}, Max:{packed.max()}, Mean:{packed.mean():.1f}")
+print(f"已读取 {len(packed)} 字节，最小值:{packed.min()}，最大值:{packed.max()}，平均值:{packed.mean():.1f}")
 
-# Unpack 10-bit MIPI to 16-bit
+# 将 10 位 MIPI 数据解包为 16 位
 bytes_per_row = (width * 10) // 8
 packed = packed[:bytes_per_row * height].reshape(height, bytes_per_row)
 
@@ -25,25 +25,24 @@ for y in range(height):
         img[y, x + 2] = (b2 << 2) | ((b4 >> 4) & 0x03)
         img[y, x + 3] = (b3 << 2) | ((b4 >> 6) & 0x03)
 
-print(f"Unpacked 10-bit: Min:{img.min()}, Max:{img.max()}, Mean:{img.mean():.1f}")
+print(f"已解包 10 位数据：最小值:{img.min()}，最大值:{img.max()}，平均值:{img.mean():.1f}")
 
-# Stretch contrast
+# 拉伸对比度
 img_min, img_max = img.min(), img.max()
 if img_max > img_min:
     img_stretched = ((img - img_min) * 1023 / (img_max - img_min)).astype(np.uint16)
 else:
     img_stretched = img
 
-# Convert to 8-bit
+# 转换为 8 位
 img8 = (img_stretched >> 2).astype(np.uint8)
 
-# Debayer using OpenCV
+# 使用 OpenCV 进行去拜耳处理
 try:
     import cv2
     bgr = cv2.cvtColor(img8, cv2.COLOR_BAYER_RG2BGR)
     bgr_bright = cv2.convertScaleAbs(bgr, alpha=2.0, beta=30)
     cv2.imwrite(output_file, bgr_bright)
-    print(f"Saved {output_file}")
+    print(f"已保存 {output_file}")
 except ImportError:
-    print("Install OpenCV: pip install opencv-python --break-system-packages")
-
+    print("请安装 OpenCV：pip install opencv-python --break-system-packages")

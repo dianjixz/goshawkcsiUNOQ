@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Generic DPI panel driver — reads display timings from device tree.
+ * 通用 DPI 面板驱动：从设备树读取显示时序。
  *
- * Use as downstream panel behind a DSI-to-DPI bridge (e.g. TC358762).
- * Compatible: "panel-dpi"
+ * 用作 DSI 转 DPI 桥接器（如 TC358762）后端的下游面板。
+ * 兼容标识："panel-dpi"
  *
- * Required DT properties:
+ * 必需的设备树属性：
  *   panel-timing { clock-frequency, hactive, vactive, h/vfront-porch,
  *                  h/vback-porch, h/vsync-len };
- * Optional:
+ * 可选属性：
  *   width-mm, height-mm, power-supply
  */
 
@@ -84,7 +84,7 @@ static int panel_dpi_parse_timing(struct device *dev,
 
 	np = of_get_child_by_name(dev->of_node, "panel-timing");
 	if (!np) {
-		dev_err(dev, "missing panel-timing node\n");
+		dev_err(dev, "缺少 panel-timing 节点\n");
 		return -EINVAL;
 	}
 
@@ -101,7 +101,7 @@ static int panel_dpi_parse_timing(struct device *dev,
 	of_node_put(np);
 
 	if (ret) {
-		dev_err(dev, "incomplete panel-timing (missing properties)\n");
+		dev_err(dev, "panel-timing 不完整（缺少属性）\n");
 		return -EINVAL;
 	}
 
@@ -165,7 +165,7 @@ static void panel_dpi_remove(struct platform_device *pdev)
 
 static const struct of_device_id panel_dpi_of_match[] = {
 	{ .compatible = "panel-dpi" },
-	{ /* sentinel */ }
+	{ /* 哨兵项 */ }
 };
 MODULE_DEVICE_TABLE(of, panel_dpi_of_match);
 
@@ -179,5 +179,5 @@ static struct platform_driver panel_dpi_driver = {
 };
 module_platform_driver(panel_dpi_driver);
 
-MODULE_DESCRIPTION("Generic DPI panel driver with DT-defined timings");
+MODULE_DESCRIPTION("使用设备树定义时序的通用 DPI 面板驱动");
 MODULE_LICENSE("GPL");

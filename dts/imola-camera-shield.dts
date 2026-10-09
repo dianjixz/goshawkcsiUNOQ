@@ -3099,7 +3099,7 @@
 		pinctrl-names = "default";
 
 		key-volume-up {
-			label = "Volume Up";
+			label = "音量加";
 			linux,code = <0x73>;
 			gpios = <0x1a 0x60 0x01>;
 			debounce-interval = <0x0f>;
@@ -3108,7 +3108,7 @@
 		};
 
 		key-volume-down {
-			label = "Volume Down";
+			label = "音量减";
 			linux,code = <0x72>;
 			gpios = <0x1a 0x24 0x01>;
 			debounce-interval = <0x0f>;

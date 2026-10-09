@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Goodix Touchscreen firmware upload support
+ * Goodix 触摸屏固件上传支持
  *
  * Copyright (c) 2021 Hans de Goede <hdegoede@redhat.com>
  *
@@ -75,7 +75,7 @@ static int goodix_firmware_verify(struct device *dev, const struct firmware *fw)
 	dev_info(dev, "Firmware hardware info %02x%02x%02x%02x\n",
 		 fw_header->hw_info[0], fw_header->hw_info[1],
 		 fw_header->hw_info[2], fw_header->hw_info[3]);
-	/* pid is a 8 byte buffer containing a string, weird I know */
+/* pid 是一个包含字符串的 8 字节缓冲区 */
 	memcpy(buf, fw_header->pid, 8);
 	buf[8] = 0;
 	dev_info(dev, "Firmware PID: %s VID: %02x%02x\n", buf,
@@ -109,43 +109,43 @@ static int goodix_enter_upload_mode(struct i2c_client *client)
 		return -EIO;
 	}
 
-	/* DSP_CK and DSP_ALU_CK PowerOn */
+	/* 打开 DSP_CK 和 DSP_ALU_CK */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_MISCTL_DSP_CTL, 0x00);
 	if (error)
 		return error;
 
-	/* Disable watchdog */
+	/* 禁用看门狗 */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_MISCTL_TMR0_EN, 0x00);
 	if (error)
 		return error;
 
-	/* Clear cache enable */
+	/* 清除缓存使能 */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_MISCTL_CACHE_EN, 0x00);
 	if (error)
 		return error;
 
-	/* Set boot from SRAM */
+	/* 设置从 SRAM 引导 */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_MISCTL_BOOTCTL, 0x02);
 	if (error)
 		return error;
 
-	/* Software reboot */
+	/* 软件重启 */
 	error = goodix_i2c_write_u8(client,
 				    GOODIX_REG_MISCTL_CPU_SWRST_PULSE, 0x01);
 	if (error)
 		return error;
 
-	/* Clear control flag */
+	/* 清除控制标志 */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_MISCTL_BOOTCTL, 0x00);
 	if (error)
 		return error;
 
-	/* Set scramble */
+	/* 设置扰码 */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_MISCTL_BOOT_OPT, 0x00);
 	if (error)
 		return error;
 
-	/* Enable accessing code */
+	/* 允许访问代码区 */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_MISCTL_MEM_CD_EN, 0x01);
 	if (error)
 		return error;
@@ -158,12 +158,12 @@ static int goodix_start_firmware(struct i2c_client *client)
 	int error;
 	u8 val;
 
-	/* Init software watchdog */
+	/* 初始化软件看门狗 */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_SW_WDT, 0xaa);
 	if (error)
 		return error;
 
-	/* Release SS51 & DSP */
+	/* 释放 SS51 和 DSP */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_MISCTL_SWRST, 0x00);
 	if (error)
 		return error;
@@ -172,13 +172,13 @@ static int goodix_start_firmware(struct i2c_client *client)
 	if (error)
 		return error;
 
-	/* The value we've written to SW_WDT should have been cleared now */
+	/* 此时写入 SW_WDT 的值应已被清除 */
 	if (val == 0xaa) {
 		dev_err(&client->dev, "Error SW_WDT reg not cleared on fw startup\n");
 		return -EIO;
 	}
 
-	/* Re-init software watchdog */
+	/* 重新初始化软件看门狗 */
 	error = goodix_i2c_write_u8(client, GOODIX_REG_SW_WDT, 0xaa);
 	if (error)
 		return error;
@@ -213,7 +213,7 @@ static int goodix_firmware_upload(struct goodix_ts_data *ts)
 	if (error)
 		goto release;
 
-	/* Select SRAM bank 0 and upload section 1 & 2 */
+	/* 选择 SRAM bank 0，并上传第 1、2 段 */
 	error = goodix_i2c_write_u8(ts->client,
 				    GOODIX_REG_MISCTL_SRAM_BANK, 0x00);
 	if (error)
@@ -225,7 +225,7 @@ static int goodix_firmware_upload(struct goodix_ts_data *ts)
 	if (error)
 		goto release;
 
-	/* Select SRAM bank 1 and upload section 3 & 4 */
+	/* 选择 SRAM bank 1，并上传第 3、4 段 */
 	error = goodix_i2c_write_u8(ts->client,
 				    GOODIX_REG_MISCTL_SRAM_BANK, 0x01);
 	if (error)
@@ -237,7 +237,7 @@ static int goodix_firmware_upload(struct goodix_ts_data *ts)
 	if (error)
 		goto release;
 
-	/* Select SRAM bank 2 and upload the DSP firmware */
+	/* 选择 SRAM bank 2，并上传 DSP 固件 */
 	error = goodix_i2c_write_u8(ts->client,
 				    GOODIX_REG_MISCTL_SRAM_BANK, 0x02);
 	if (error)
@@ -264,7 +264,7 @@ static int goodix_prepare_bak_ref(struct goodix_ts_data *ts)
 	u8 have_key, driver_num, sensor_num;
 
 	if (ts->bak_ref)
-		return 0; /* Already done */
+		return 0; /* 已完成 */
 
 	have_key = (ts->config[GOODIX_CFG_LOC_HAVE_KEY] & 0x01);
 
@@ -287,19 +287,15 @@ static int goodix_prepare_bak_ref(struct goodix_ts_data *ts)
 		return -ENOMEM;
 
 	/*
-	 * The bak_ref array contains the backup of an array of (self/auto)
-	 * calibration related values which the Android version of the driver
-	 * stores on the filesystem so that it can be restored after reboot.
-	 * The mainline kernel never writes directly to the filesystem like
-	 * this, we always start will all the values which give a correction
-	 * factor in approx. the -20 - +20 range (in 2s complement) set to 0.
+	 * bak_ref 数组保存一组与（自/自动）校准相关数值的备份。Android 版
+	 * 驱动会将其保存到文件系统，以便重启后恢复。主线内核不会这样直接
+	 * 写入文件系统；启动时，我们始终将校正因子约在 -20 至 +20 范围内
+	 * （以二进制补码表示）的所有值设为 0。
 	 *
-	 * Note the touchscreen works fine without restoring the reference
-	 * values after a reboot / power-cycle.
+	 * 注意，重启或重新上电后即使不恢复参考值，触摸屏也能正常工作。
 	 *
-	 * The last 2 bytes are a 16 bits unsigned checksum which is expected
-	 * to make the addition al all 16 bit unsigned values in the array add
-	 * up to 1 (rather then the usual 0), so we must set the last byte to 1.
+	 * 最后 2 个字节是 16 位无符号校验和，要求数组中所有 16 位无符号值
+	 * 的总和为 1（而不是通常的 0），因此必须将最后一个字节设为 1。
 	 */
 	ts->bak_ref[ts->bak_ref_len - 1] = 1;
 
@@ -308,7 +304,7 @@ static int goodix_prepare_bak_ref(struct goodix_ts_data *ts)
 
 static int goodix_send_main_clock(struct goodix_ts_data *ts)
 {
-	u32 main_clk = 54; /* Default main clock */
+	u32 main_clk = 54; /* 默认主时钟 */
 	u8 checksum = 0;
 	int i;
 
@@ -320,7 +316,7 @@ static int goodix_send_main_clock(struct goodix_ts_data *ts)
 		checksum += main_clk;
 	}
 
-	/* The value of all bytes combines must be 0 */
+	/* 所有字节之和必须为 0 */
 	ts->main_clk[GOODIX_MAIN_CLK_LEN - 1] = 256 - checksum;
 
 	return goodix_i2c_write(ts->client, GOODIX_REG_MAIN_CLK,
@@ -357,8 +353,7 @@ bool goodix_handle_fw_request(struct goodix_ts_data *ts)
 	switch (val) {
 	case GOODIX_RQST_RESPONDED:
 		/*
-		 * If we read back our own last ack the IRQ was not for
-		 * a request.
+		 * 如果读回的是上一次自身写入的应答，则该 IRQ 并非请求。
 		 */
 		return false;
 	case GOODIX_RQST_CONFIG:
@@ -397,7 +392,7 @@ bool goodix_handle_fw_request(struct goodix_ts_data *ts)
 		dev_err_ratelimited(&ts->client->dev, "Unknown Request: 0x%02x\n", val);
 	}
 
-	/* Ack the request */
+	/* 应答请求 */
 	goodix_i2c_write_u8(ts->client,
 			    GOODIX_REG_REQUEST, GOODIX_RQST_RESPONDED);
 	return true;

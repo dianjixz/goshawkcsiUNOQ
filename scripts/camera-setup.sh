@@ -1,19 +1,18 @@
 #!/bin/bash
 #
-# Detect, configure, and capture from IMX219 cameras on Arduino UNO Q
+# 检测并配置 Arduino UNO Q 上的 IMX219 摄像头，以及从中采集图像
 #
-# Automatically identifies which cameras are connected, traces the media
-# pipeline to find the correct /dev/videoX device for each, and configures
-# the pipeline formats.
+# 自动识别已连接的摄像头，追踪媒体管线以找到各摄像头对应的
+# /dev/videoX 设备，并配置管线格式。
 #
-# Usage:
-#   ./camera-setup.sh              # Detect and configure cameras
-#   ./camera-setup.sh capture      # Configure + capture one frame from each
-#   ./camera-setup.sh stream CAM1  # Configure + continuous stream from CAM1
+# 用法：
+#   ./camera-setup.sh              # 检测并配置摄像头
+#   ./camera-setup.sh capture      # 配置并从每个摄像头采集一帧
+#   ./camera-setup.sh stream CAM1  # 配置并从 CAM1 连续传输
 #
-# The script assigns stable names:
-#   CAM0 = sensor on CCI I2C bus 0 (J4 connector)
-#   CAM1 = sensor on CCI I2C bus 1 (J3 connector)
+# 脚本分配固定名称：
+#   CAM0 = CCI I2C 总线 0 上的传感器（J4 接口）
+#   CAM1 = CCI I2C 总线 1 上的传感器（J3 接口）
 #
 
 set -e
@@ -22,7 +21,7 @@ MEDIA_DEV="/dev/media0"
 FORMAT="SRGGB10_1X10"
 WIDTH=1920
 HEIGHT=1080
-PIX_FMT="pRAA"   # 10-bit packed Bayer (MIPI)
+PIX_FMT="pRAA"   # 10 位打包 Bayer（MIPI）
 FRAME_COUNT=1
 TIMEOUT=10
 
@@ -33,18 +32,18 @@ info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
-# ── Check prerequisites ─────────────────────────────────────────────────
+# ── 检查前置条件 ────────────────────────────────────────────────────────
 
-[ -e "$MEDIA_DEV" ] || error "/dev/media0 not found. Is qcom-camss loaded?"
-command -v media-ctl &>/dev/null || error "media-ctl not found. Install v4l-utils."
-command -v v4l2-ctl &>/dev/null || error "v4l2-ctl not found. Install v4l-utils."
+[ -e "$MEDIA_DEV" ] || error "未找到 /dev/media0。qcom-camss 是否已加载？"
+command -v media-ctl &>/dev/null || error "未找到 media-ctl。请安装 v4l-utils。"
+command -v v4l2-ctl &>/dev/null || error "未找到 v4l2-ctl。请安装 v4l-utils。"
 
-# ── Discover sensors ─────────────────────────────────────────────────────
+# ── 发现传感器 ──────────────────────────────────────────────────────────
 
-# Parse media-ctl -p to find all imx219 sensor entities.
-# Each sensor entity name is like "imx219 N-0010" where N is the I2C adapter.
-# CCI bus 0 registers as i2c adapter 1 (or similar), CCI bus 1 as adapter 2.
-# We map them to CAM0/CAM1 by sorting on adapter number.
+# 解析 media-ctl -p，查找所有 imx219 传感器实体。
+# 每个传感器实体名形如 "imx219 N-0010"，其中 N 为 I2C 适配器。
+# CCI 总线 0 注册为 i2c 适配器 1（或类似编号），CCI 总线 1 注册为适配器 2。
+# 按适配器编号排序，将其映射为 CAM0/CAM1。
 
 declare -A SENSOR_ENTITY    # CAM0 => "imx219 1-0010"
 declare -A SENSOR_SUBDEV    # CAM0 => "/dev/v4l-subdev12"
@@ -57,14 +56,14 @@ declare -a CAM_LIST         # ("CAM0" "CAM1")
 
 MEDIA_OUTPUT="$(media-ctl -d "$MEDIA_DEV" -p)"
 
-# Find all imx219 entities
+# 查找所有 imx219 实体
 while IFS= read -r line; do
-    # Match: "- entity 131: imx219 2-0010 (1 pad, 1 link, 0 routes)"
+    # 匹配："- entity 131: imx219 2-0010 (1 pad, 1 link, 0 routes)"
     if [[ "$line" =~ entity\ [0-9]+:\ (imx219\ ([0-9]+)-[0-9a-f]+)\ \( ]]; then
         entity="${BASH_REMATCH[1]}"
         i2c_bus="${BASH_REMATCH[2]}"
 
-        # Read next line for subdev path
+        # 读取下一行中的子设备路径
         subdev=""
         while IFS= read -r next; do
             if [[ "$next" =~ device\ node\ name\ (/dev/v4l-subdev[0-9]+) ]]; then
@@ -73,7 +72,7 @@ while IFS= read -r line; do
             fi
         done
 
-        # Sort sensors by I2C bus number → lower bus = CAM0
+        # 按 I2C 总线编号排序，编号较小者为 CAM0
         cam_idx="${#CAM_LIST[@]}"
         cam_name="CAM${cam_idx}"
         CAM_LIST+=("$cam_name")
@@ -83,11 +82,11 @@ while IFS= read -r line; do
     fi
 done <<< "$MEDIA_OUTPUT"
 
-# Sort by I2C bus number (lower = CAM0)
+# 按 I2C 总线编号排序（编号较小者为 CAM0）
 if [ ${#CAM_LIST[@]} -gt 1 ]; then
-    # Re-sort: find which has lower I2C bus
+    # 重新排序：找出 I2C 总线编号较小者
     if [ "${SENSOR_I2C_BUS[CAM1]}" -lt "${SENSOR_I2C_BUS[CAM0]}" ]; then
-        # Swap
+        # 交换
         for key in SENSOR_ENTITY SENSOR_SUBDEV SENSOR_I2C_BUS; do
             declare -n arr="$key"
             tmp="${arr[CAM0]}"
@@ -98,68 +97,68 @@ if [ ${#CAM_LIST[@]} -gt 1 ]; then
 fi
 
 if [ ${#CAM_LIST[@]} -eq 0 ]; then
-    error "No IMX219 sensors found. Check camera connections and dmesg."
+    error "未找到 IMX219 传感器。请检查摄像头连接和 dmesg。"
 fi
 
-# ── Trace pipeline for each sensor ───────────────────────────────────────
+# ── 追踪各传感器的管线 ──────────────────────────────────────────────────
 
-# For each sensor, follow the ENABLED links through the pipeline:
-#   sensor → csiphy → csid → vfe_rdi → video_node
+# 对每个传感器，沿管线中的 ENABLED 链接追踪：
+#   传感器 → csiphy → csid → vfe_rdi → 视频节点
 trace_pipeline() {
     local cam="$1"
     local entity="${SENSOR_ENTITY[$cam]}"
 
-    # Find which csiphy the sensor connects to
+    # 查找传感器连接的 csiphy
     local csiphy=""
     csiphy=$(echo "$MEDIA_OUTPUT" | grep -B5 "\"${entity}\".*ENABLED" | \
              grep -oP 'entity \d+: \K(msm_csiphy\d+)' | head -1)
     if [ -z "$csiphy" ]; then
-        warn "$cam: Cannot trace csiphy link"
+        warn "$cam：无法追踪 csiphy 链接"
         return 1
     fi
     CAM_CSIPHY[$cam]="$csiphy"
 
-    # Find which csid the csiphy connects to (ENABLED link)
+    # 查找 csiphy 连接的 csid（ENABLED 链接）
     local csid=""
-    # Look for ENABLED links from csiphy SOURCE pad
+    # 查找从 csiphy SOURCE pad 引出的 ENABLED 链接
     csid=$(echo "$MEDIA_OUTPUT" | \
            sed -n "/entity.*${csiphy}/,/^$/p" | \
            grep 'pad1: SOURCE' -A20 | \
            grep -oP '"(msm_csid\d+)".*\[ENABLED\]' | \
            grep -oP 'msm_csid\d+' | head -1)
     if [ -z "$csid" ]; then
-        # Try to find any csid that has this csiphy as ENABLED source
+        # 尝试查找以此 csiphy 为 ENABLED 源的任意 csid
         csid=$(echo "$MEDIA_OUTPUT" | \
                grep -P "\"${csiphy}\".*\[ENABLED\]" | \
                grep -oP 'msm_csid\d+' | head -1)
     fi
     if [ -z "$csid" ]; then
-        warn "$cam: Cannot trace csid link from $csiphy"
+        warn "$cam：无法追踪从 $csiphy 引出的 csid 链接"
         return 1
     fi
     CAM_CSID[$cam]="$csid"
 
-    # Find which vfe_rdi the csid connects to (ENABLED link)
+    # 查找 csid 连接的 vfe_rdi（ENABLED 链接）
     local vfe=""
     vfe=$(echo "$MEDIA_OUTPUT" | \
           sed -n "/entity.*${csid} /,/^- entity/p" | \
           grep -oP '"(msm_vfe\d+_rdi\d+)".*\[ENABLED\]' | \
           grep -oP 'msm_vfe\d+_rdi\d+' | head -1)
     if [ -z "$vfe" ]; then
-        warn "$cam: Cannot trace VFE link from $csid"
+        warn "$cam：无法追踪从 $csid 引出的 VFE 链接"
         return 1
     fi
     CAM_VFE[$cam]="$vfe"
 
-    # Find the /dev/videoX node connected to this VFE
+    # 查找连接到此 VFE 的 /dev/videoX 节点
     local video=""
-    # The video node entity name is like msm_vfe0_video0 for msm_vfe0_rdi0
+    # msm_vfe0_rdi0 对应的视频节点实体名形如 msm_vfe0_video0
     local video_entity="${vfe/rdi/video}"
     video=$(echo "$MEDIA_OUTPUT" | \
             sed -n "/entity.*${video_entity}/,/^$/p" | \
             grep -oP 'device node name \K/dev/video\d+')
     if [ -z "$video" ]; then
-        warn "$cam: Cannot find video device for $vfe"
+        warn "$cam：找不到 $vfe 对应的视频设备"
         return 1
     fi
     CAM_VIDEO[$cam]="$video"
@@ -169,11 +168,11 @@ for cam in "${CAM_LIST[@]}"; do
     trace_pipeline "$cam" || true
 done
 
-# ── Display results ──────────────────────────────────────────────────────
+# ── 显示结果 ────────────────────────────────────────────────────────────
 
 echo ""
 echo -e "${BOLD}════════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}  Camera Detection — Arduino UNO Q / Zephyria Shield${NC}"
+echo -e "${BOLD}  摄像头检测 - Arduino UNO Q / Zephyria 扩展板${NC}"
 echo -e "${BOLD}════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -181,19 +180,19 @@ for cam in "${CAM_LIST[@]}"; do
     if [ -n "${CAM_VIDEO[$cam]}" ]; then
         echo -e "  ${GREEN}✓${NC}  ${BOLD}${cam}${NC}"
     else
-        echo -e "  ${YELLOW}?${NC}  ${BOLD}${cam}${NC}  (pipeline not fully traced)"
+        echo -e "  ${YELLOW}?${NC}  ${BOLD}${cam}${NC}  （未完整追踪管线）"
     fi
-    echo "      Sensor:   ${SENSOR_ENTITY[$cam]}"
-    echo "      Subdev:   ${SENSOR_SUBDEV[$cam]}"
-    echo "      I2C bus:  ${SENSOR_I2C_BUS[$cam]}"
+    echo "      传感器：${SENSOR_ENTITY[$cam]}"
+    echo "      子设备：${SENSOR_SUBDEV[$cam]}"
+    echo "      I2C 总线：${SENSOR_I2C_BUS[$cam]}"
     if [ -n "${CAM_CSIPHY[$cam]}" ]; then
-        echo "      Pipeline: ${CAM_CSIPHY[$cam]} → ${CAM_CSID[$cam]} → ${CAM_VFE[$cam]}"
-        echo "      Video:    ${CAM_VIDEO[$cam]}"
+        echo "      管线：${CAM_CSIPHY[$cam]} → ${CAM_CSID[$cam]} → ${CAM_VFE[$cam]}"
+        echo "      视频设备：${CAM_VIDEO[$cam]}"
     fi
     echo ""
 done
 
-# ── Configure pipeline ───────────────────────────────────────────────────
+# ── 配置管线 ────────────────────────────────────────────────────────────
 
 configure_camera() {
     local cam="$1"
@@ -204,11 +203,11 @@ configure_camera() {
     local fmt="${FORMAT}/${WIDTH}x${HEIGHT}"
 
     if [ -z "$vfe" ]; then
-        warn "Skipping $cam — pipeline not traced"
+        warn "跳过 $cam，未追踪到管线"
         return 1
     fi
 
-    info "Configuring $cam pipeline: $entity → $csiphy → $csid → $vfe"
+    info "正在配置 $cam 管线：$entity → $csiphy → $csid → $vfe"
 
     media-ctl -d "$MEDIA_DEV" --set-v4l2 "\"${entity}\":0[fmt:${fmt}]"
     media-ctl -d "$MEDIA_DEV" --set-v4l2 "\"${csiphy}\":0[fmt:${fmt}]"
@@ -218,17 +217,17 @@ configure_camera() {
     media-ctl -d "$MEDIA_DEV" --set-v4l2 "\"${vfe}\":0[fmt:${fmt}]"
     media-ctl -d "$MEDIA_DEV" --set-v4l2 "\"${vfe}\":1[fmt:${fmt}]"
 
-    info "$cam pipeline configured"
+    info "$cam 管线配置完成"
 }
 
-echo -e "${BOLD}Configuring pipelines...${NC}"
+echo -e "${BOLD}正在配置管线...${NC}"
 echo ""
 
 for cam in "${CAM_LIST[@]}"; do
     configure_camera "$cam" || true
 done
 
-# ── Set default exposure ─────────────────────────────────────────────────
+# ── 设置默认曝光 ────────────────────────────────────────────────────────
 
 for cam in "${CAM_LIST[@]}"; do
     subdev="${SENSOR_SUBDEV[$cam]}"
@@ -238,13 +237,13 @@ for cam in "${CAM_LIST[@]}"; do
     fi
 done
 
-# ── Action: capture or stream ────────────────────────────────────────────
+# ── 操作：采集或传输 ────────────────────────────────────────────────────
 
 ACTION="${1:-}"
 
 if [ "$ACTION" = "capture" ]; then
     echo ""
-    echo -e "${BOLD}Capturing frames...${NC}"
+    echo -e "${BOLD}正在采集帧...${NC}"
     echo ""
 
     for cam in "${CAM_LIST[@]}"; do
@@ -252,13 +251,13 @@ if [ "$ACTION" = "capture" ]; then
         [ -z "$video" ] && continue
 
         outfile="${cam,,}_$(date +%Y%m%d_%H%M%S).raw"
-        info "$cam: Capturing from $video → $outfile"
+        info "$cam：正在从 $video 采集到 $outfile"
 
         timeout "$TIMEOUT" v4l2-ctl -d "$video" \
             --set-fmt-video=width=${WIDTH},height=${HEIGHT},pixelformat=${PIX_FMT} \
             --stream-mmap --stream-count=${FRAME_COUNT} \
             --stream-to="$outfile" 2>&1 || {
-            warn "$cam: Capture failed or timed out"
+            warn "$cam：采集失败或超时"
             continue
         }
 
@@ -266,35 +265,35 @@ if [ "$ACTION" = "capture" ]; then
             size=$(du -sh "$outfile" | cut -f1)
             echo -e "  ${GREEN}✓${NC}  $outfile ($size)"
         else
-            echo -e "  ${RED}✗${NC}  $outfile (empty or missing)"
+            echo -e "  ${RED}✗${NC}  $outfile（为空或缺失）"
         fi
     done
 
 elif [ "$ACTION" = "stream" ]; then
     TARGET_CAM="${2:-CAM0}"
     video="${CAM_VIDEO[$TARGET_CAM]}"
-    [ -z "$video" ] && error "$TARGET_CAM not found or pipeline not traced"
+    [ -z "$video" ] && error "未找到 $TARGET_CAM，或未追踪到其管线"
 
-    info "Streaming from $TARGET_CAM ($video)... Press Ctrl+C to stop."
+    info "正在从 $TARGET_CAM ($video) 传输... 按 Ctrl+C 停止。"
     v4l2-ctl -d "$video" \
         --set-fmt-video=width=${WIDTH},height=${HEIGHT},pixelformat=${PIX_FMT} \
         --stream-mmap --stream-count=0
 fi
 
-# ── Summary ──────────────────────────────────────────────────────────────
+# ── 摘要 ────────────────────────────────────────────────────────────────
 
 echo ""
-echo -e "${BOLD}Quick reference:${NC}"
+echo -e "${BOLD}快速参考：${NC}"
 echo ""
 for cam in "${CAM_LIST[@]}"; do
     video="${CAM_VIDEO[$cam]}"
     subdev="${SENSOR_SUBDEV[$cam]}"
     [ -z "$video" ] && continue
-    echo "  $cam: capture device = $video"
-    echo "        sensor subdev = $subdev"
+    echo "  $cam：采集设备 = $video"
+    echo "        传感器子设备 = $subdev"
 done
 echo ""
-echo "  Capture one frame:"
+echo "  采集一帧："
 for cam in "${CAM_LIST[@]}"; do
     video="${CAM_VIDEO[$cam]}"
     [ -z "$video" ] && continue
@@ -302,7 +301,7 @@ for cam in "${CAM_LIST[@]}"; do
     echo "        --stream-mmap --stream-count=1 --stream-to=${cam,,}.raw"
 done
 echo ""
-echo "  Adjust exposure/gain:"
+echo "  调整曝光/增益："
 for cam in "${CAM_LIST[@]}"; do
     subdev="${SENSOR_SUBDEV[$cam]}"
     [ -z "$subdev" ] && continue

@@ -1,6 +1,6 @@
-Enable pins
+使能引脚
 
-DEVICE | J2 (JMISC) | REAL PIN NAME | DEVICE TREE NODE INDEX* 
+设备 | J2 (JMISC) | 实际引脚名称 | 设备树节点索引*
 -------| -----------| ------------- | ---------------------- 
 DSI EN   |   11 MCU_PSSI_D5 	|  PI4 |	35  
 DSI RST	 |   13 MCU_PSSI_D6	|  PI6 |	37
@@ -10,13 +10,13 @@ CSI 1 EN |   23 MCU_MCO_PA8	|  PA8 |	47
 CSI 1 LE |  25 MCU_CRS_SYNC_PA10 | PA10 | 	49
 
 
-Reference: https://github.com/arduino/ArduinoCore-zephyr/blob/main/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.overlay
-Starting in: 
+参考：https://github.com/arduino/ArduinoCore-zephyr/blob/main/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.overlay
+起始位置：
 ``` 
 194 zephyr,user {
 195		digital-pin-gpios = <&gpiob 7 GPIO_ACTIVE_HIGH>, /* D0 - PB7 */
 ``` 
-INDEX | ZEPHYR NODE | REAL PIN NAME
+索引 | ZEPHYR 节点 | 实际引脚名称
 ----- | ----------- | -------------
 0 | <&gpiob 7 GPIO_ACTIVE_HIGH>, /* D0 - PB7 */ | 
 1 | <&gpiob 6 GPIO_ACTIVE_HIGH>, /* D1 - PB6 */ |

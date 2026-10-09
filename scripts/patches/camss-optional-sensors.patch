@@ -1,23 +1,23 @@
 --- a/drivers/media/platform/qcom/camss/camss.c
 +++ b/drivers/media/platform/qcom/camss/camss.c
-@@ -10,6 +10,7 @@
+@@ -10,5 +10,6 @@
  #include <linux/clk.h>
  #include <linux/interconnect.h>
 +#include <linux/i2c.h>
  #include <linux/media-bus-format.h>
  #include <linux/media.h>
  #include <linux/module.h>
-@@ -3158,6 +3159,48 @@
+@@ -3158,6 +3159,50 @@
  	return 0;
  }
 
 +/*
-+ * camss_sensor_is_present - Check if a sensor responds on its I2C bus
-+ * @dev:         CAMSS device (for logging)
-+ * @sensor_node: DT node of the sensor (e.g. sensor@10)
++ * camss_sensor_is_present - 检查传感器是否在其 I2C 总线上响应
++ * @dev:         CAMSS 设备（用于日志记录）
++ * @sensor_node: 传感器的设备树节点（例如 sensor@10）
 + *
-+ * Return: true  if sensor answered or detection was not possible
-+ *         false if bus was accessible and no device answered
++ * 返回：传感器响应或无法检测时为 true
++ *       总线可访问但设备无响应时为 false
 + */
 +static bool camss_sensor_is_present(struct device *dev,
 +				    struct device_node *sensor_node)
@@ -46,12 +46,12 @@
 +
 +	if (ret < 0) {
 +		dev_info(dev,
-+			 "sensor %pOFn @0x%02x not detected (err %d), skipping\n",
++			 "未检测到传感器 %pOFn @0x%02x（错误 %d），跳过\n",
 +			 sensor_node, reg, ret);
 +		return false;
 +	}
 +
-+	dev_info(dev, "sensor %pOFn @0x%02x detected\n", sensor_node, reg);
++	dev_info(dev, "检测到传感器 %pOFn @0x%02x\n", sensor_node, reg);
 +	return true;
 +}
 +
@@ -62,7 +62,7 @@
  			goto err_cleanup;
  		}
 
-+		/* Skip sensors that are disabled or physically absent */
++		/* 跳过已禁用或物理上不存在的传感器 */
 +		if (!of_device_is_available(remote) ||
 +		    !camss_sensor_is_present(dev, remote)) {
 +			of_node_put(remote);

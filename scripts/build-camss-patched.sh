@@ -1,22 +1,21 @@
 #!/bin/bash
 #
-# Build a patched qcom-camss.ko that skips absent sensors
+# 构建可跳过缺失传感器的补丁版 qcom-camss.ko
 #
-# The stock CAMSS driver waits for ALL sensors declared in the device tree
-# to bind before registering the media device.  If any camera connector is
-# unpopulated, the entire camera subsystem is blocked.
+# 原版 CAMSS 驱动会等待设备树中声明的所有传感器完成绑定，之后才注册
+# 媒体设备。如果有任何摄像头接口未连接，整个摄像头子系统都会被阻塞。
 #
-# This script patches camss.c to probe the I2C bus before adding a sensor
-# to the v4l2 async notifier.  Absent sensors are silently skipped.
+# 此脚本会修改 camss.c，在将传感器加入 v4l2 异步通知器之前探测 I2C
+# 总线。未连接的传感器会被静默跳过。
 #
-# Usage (on-device):
+# 用法（在设备上）：
 #   ./build-camss-patched.sh [KERNEL_SRC_DIR]
 #
-# Usage (cross-compile):
+# 用法（交叉编译）：
 #   ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
 #     ./build-camss-patched.sh /tmp/dsi-modules-cross/linux-qcom
 #
-# After cross-building, copy qcom-camss.ko to the board and install:
+# 交叉编译后，将 qcom-camss.ko 复制到开发板并安装：
 #   scp /tmp/camss-patched/qcom-camss.ko user@uno-q:/tmp/
 #   ssh user@uno-q 'KVER=$(uname -r); \
 #     sudo cp /lib/modules/$KVER/kernel/drivers/media/platform/qcom/camss/qcom-camss.ko{,.orig}; \
@@ -28,7 +27,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Kernel source — same one used by build-dsi-ondevice.sh / cross-build-dsi-modules.sh
+# 内核源码，与 build-dsi-ondevice.sh / cross-build-dsi-modules.sh 使用的相同
 KERNEL_SRC="${1:-${KERNEL_SRC_DIR:-/opt/arduino-linux-qcom}}"
 CAMSS_SRC="${KERNEL_SRC}/drivers/media/platform/qcom/camss"
 CAMSS_C="${CAMSS_SRC}/camss.c"
@@ -47,31 +46,31 @@ step()  { echo -e "\n${BOLD}${BLUE}▶ $*${NC}"; }
 
 echo ""
 echo "════════════════════════════════════════════════════════════"
-echo "  CAMSS Optional-Sensor Patch Builder"
+echo "  CAMSS 可选传感器补丁构建工具"
 echo "════════════════════════════════════════════════════════════"
 echo ""
 
 # ── Validate ─────────────────────────────────────────────────────────────
 
-[ -f "$CAMSS_C" ] || error "CAMSS source not found: ${CAMSS_C}\n  Set KERNEL_SRC_DIR or pass the path as argument."
-[ -f "${KERNEL_SRC}/Makefile" ] || error "Kernel source not at ${KERNEL_SRC}."
+[ -f "$CAMSS_C" ] || error "未找到 CAMSS 源码：${CAMSS_C}\n  请设置 KERNEL_SRC_DIR 或将路径作为参数传入。"
+[ -f "${KERNEL_SRC}/Makefile" ] || error "${KERNEL_SRC} 中没有内核源码。"
 
 # ── Patch camss.c ────────────────────────────────────────────────────────
 
-step "Patching camss.c"
+step "正在修补 camss.c"
 
 if grep -q 'camss_sensor_is_present' "$CAMSS_C"; then
-    info "Already patched — skipping."
+    info "已应用补丁，跳过。"
 else
-    # Back up original
+    # 备份原文件
     cp "$CAMSS_C" "${CAMSS_C}.orig"
-    info "Backed up ${CAMSS_C} → ${CAMSS_C}.orig"
+    info "已备份 ${CAMSS_C} → ${CAMSS_C}.orig"
 
     # --- 1. Add #include <linux/i2c.h> ---
     sed -i '/#include <linux\/interconnect.h>/a #include <linux/i2c.h>' "$CAMSS_C"
 
     # --- 2. Insert camss_sensor_is_present() before camss_of_parse_ports() ---
-    # Create a temporary file with the function
+    # 创建包含该函数的临时文件
     TMPFUNC=$(mktemp)
     cat > "$TMPFUNC" << 'ENDFUNC'
 /*
@@ -124,26 +123,26 @@ static bool camss_sensor_is_present(struct device *dev,
 
 ENDFUNC
 
-    # Find the "camss_of_parse_ports" function comment and insert before it
+    # 找到 "camss_of_parse_ports" 函数注释并在其前面插入
     PARSE_LINE=$(grep -n 'camss_of_parse_ports - Parse ports node' "$CAMSS_C" | head -1 | cut -d: -f1)
     if [ -z "$PARSE_LINE" ]; then
         rm "$TMPFUNC"
-        error "Cannot find camss_of_parse_ports in camss.c"
+        error "在 camss.c 中找不到 camss_of_parse_ports"
     fi
-    # The comment starts with "/*" two lines above
+    # 该注释从上方两行的 "/*" 开始
     INSERT_LINE=$((PARSE_LINE - 2))
 
-    # Split file and reassemble with the function inserted
+    # 拆分文件，并插入该函数后重新组合
     head -n "$INSERT_LINE" "$CAMSS_C" > "${CAMSS_C}.tmp"
     cat "$TMPFUNC" >> "${CAMSS_C}.tmp"
     tail -n "+$((INSERT_LINE + 1))" "$CAMSS_C" >> "${CAMSS_C}.tmp"
     mv "${CAMSS_C}.tmp" "$CAMSS_C"
     rm "$TMPFUNC"
-    info "Inserted camss_sensor_is_present()"
+    info "已插入 camss_sensor_is_present()"
 
     # --- 3. Insert the check in camss_of_parse_ports() ---
-    # We insert the check after the "Cannot get remote parent" error block,
-    # right before the v4l2_async_nf_add_fwnode() call.
+    # 在 "Cannot get remote parent" 错误处理块之后，
+    # 即调用 v4l2_async_nf_add_fwnode() 之前插入检查。
     TMPCHECK=$(mktemp)
     cat > "$TMPCHECK" << 'ENDCHECK'
 
@@ -156,11 +155,11 @@ ENDFUNC
 
 ENDCHECK
 
-    # Find the v4l2_async_nf_add_fwnode line inside camss_of_parse_ports
+    # 找到 camss_of_parse_ports 中的 v4l2_async_nf_add_fwnode 行
     ADD_LINE=$(grep -n 'csd = v4l2_async_nf_add_fwnode(&camss->notifier,' "$CAMSS_C" | head -1 | cut -d: -f1)
     if [ -z "$ADD_LINE" ]; then
         rm "$TMPCHECK"
-        error "Cannot find v4l2_async_nf_add_fwnode call in camss.c"
+        error "在 camss.c 中找不到 v4l2_async_nf_add_fwnode 调用"
     fi
 
     head -n "$((ADD_LINE - 1))" "$CAMSS_C" > "${CAMSS_C}.tmp"
@@ -168,12 +167,12 @@ ENDCHECK
     tail -n "+${ADD_LINE}" "$CAMSS_C" >> "${CAMSS_C}.tmp"
     mv "${CAMSS_C}.tmp" "$CAMSS_C"
     rm "$TMPCHECK"
-    info "Inserted sensor check in camss_of_parse_ports()"
+    info "已在 camss_of_parse_ports() 中插入传感器检查"
 fi
 
 # ── Build ────────────────────────────────────────────────────────────────
 
-step "Building qcom-camss.ko"
+step "正在构建 qcom-camss.ko"
 
 mkdir -p "$WORK_DIR"
 
@@ -190,11 +189,11 @@ make "${MAKE_ARGS[@]}" -j"$(nproc)" modules
 
 KO="${CAMSS_SRC}/qcom-camss.ko"
 if [ ! -f "$KO" ]; then
-    error "Build failed — qcom-camss.ko not produced."
+    error "构建失败，未生成 qcom-camss.ko。"
 fi
 
 cp "$KO" "${WORK_DIR}/"
-info "Built: ${WORK_DIR}/qcom-camss.ko  ($(du -sh "$KO" | cut -f1))"
+info "已构建：${WORK_DIR}/qcom-camss.ko  ($(du -sh "$KO" | cut -f1))"
 
 # ── Install (on-device only) ─────────────────────────────────────────────
 
@@ -202,47 +201,47 @@ if [ -z "$CROSS_COMPILE" ] && [ "$(uname -m)" = "aarch64" ]; then
     KVER="$(uname -r)"
     DEST="/lib/modules/${KVER}/kernel/drivers/media/platform/qcom/camss"
 
-    step "Installing qcom-camss.ko → ${DEST}"
+    step "正在安装 qcom-camss.ko → ${DEST}"
     sudo mkdir -p "$DEST"
 
     if [ -f "${DEST}/qcom-camss.ko" ] && \
        [ ! -f "${DEST}/qcom-camss.ko.orig" ]; then
         sudo cp "${DEST}/qcom-camss.ko" "${DEST}/qcom-camss.ko.orig"
-        info "Backed up original → qcom-camss.ko.orig"
+        info "已备份原文件 → qcom-camss.ko.orig"
     fi
 
     sudo cp "$KO" "${DEST}/"
     sudo depmod -a
-    info "Installed."
+    info "安装完成。"
 
-    step "Reloading qcom-camss"
+    step "正在重新加载 qcom-camss"
     if lsmod | grep -q '^qcom_camss'; then
         if sudo modprobe -r qcom-camss 2>/dev/null; then
-            info "Unloaded old qcom-camss"
+            info "已卸载旧版 qcom-camss"
         else
-            warn "Cannot unload qcom-camss (in use). Reboot to activate."
+            warn "无法卸载 qcom-camss（正在使用）。请重启以激活。"
         fi
     fi
-    sudo modprobe qcom-camss 2>/dev/null && info "Loaded patched qcom-camss" || \
-        warn "modprobe failed — reboot to activate."
+    sudo modprobe qcom-camss 2>/dev/null && info "已加载补丁版 qcom-camss" || \
+        warn "modprobe 失败，请重启以激活。"
 
     echo ""
-    echo "  Verify:"
+    echo "  验证："
     echo "    ls /dev/media*"
     echo "    dmesg | grep -i 'sensor.*detected\\|sensor.*skipping\\|camss'"
     echo ""
 else
     echo ""
     echo "════════════════════════════════════════════════════════════"
-    echo "  Cross-build complete"
+    echo "  交叉构建完成"
     echo "════════════════════════════════════════════════════════════"
     echo ""
-    echo "  Module: ${WORK_DIR}/qcom-camss.ko"
+    echo "  模块：${WORK_DIR}/qcom-camss.ko"
     echo ""
-    echo "  Deploy to UNO Q:"
+    echo "  部署到 UNO Q："
     echo "    scp ${WORK_DIR}/qcom-camss.ko user@<uno-q>:/tmp/"
     echo ""
-    echo "    # On UNO Q:"
+    echo "    # 在 UNO Q 上："
     echo "    KVER=\$(uname -r)"
     echo "    DEST=/lib/modules/\$KVER/kernel/drivers/media/platform/qcom/camss"
     echo "    sudo cp \$DEST/qcom-camss.ko \$DEST/qcom-camss.ko.orig"

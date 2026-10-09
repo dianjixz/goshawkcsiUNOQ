@@ -9,7 +9,7 @@
 #include <linux/input/touchscreen.h>
 #include <linux/regulator/consumer.h>
 
-/* Register defines */
+/* 寄存器定义 */
 #define GOODIX_REG_MISCTL_DSP_CTL		0x4010
 #define GOODIX_REG_MISCTL_SRAM_BANK		0x4048
 #define GOODIX_REG_MISCTL_MEM_CD_EN		0x4049
@@ -39,8 +39,7 @@
 #define GOODIX_RQST_RESET			0x03
 #define GOODIX_RQST_MAIN_CLOCK			0x04
 /*
- * Unknown request which gets send by the controller aprox.
- * every 34 seconds once it is up and running.
+ * 控制器启动运行后约每 34 秒发送一次的未知请求。
  */
 #define GOODIX_RQST_UNKNOWN			0x06
 #define GOODIX_RQST_IDLE			0xFF

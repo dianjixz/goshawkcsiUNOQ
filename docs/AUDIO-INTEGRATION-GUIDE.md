@@ -1,40 +1,40 @@
-# Audio Integration Guide for Zephyria Shield
+# Zephyria Shield 音频集成指南
 
-## Overview
+## 概述
 
-The Arduino UNO Q uses the **PM4125 PMIC integrated audio codec** for analog audio I/O. The Zephyria Shield routes these signals from the JMISC connector to standard audio connectors.
+Arduino UNO Q 使用 **PM4125 PMIC 集成音频编解码器**实现模拟音频 I/O。Zephyria Shield 将这些信号从 JMISC 连接器路由至标准音频连接器。
 
-**Good news:** Audio is already configured in the base Arduino DTB. The shield only needs to route the physical signals correctly.
+**好消息：** 基础 Arduino DTB 中已配置音频。扩展板只需正确路由物理信号。
 
 ---
 
-## Audio Hardware Architecture
+## 音频硬件架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    QRB2210 Audio Subsystem                      │
+│                    QRB2210 音频子系统                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │   ┌─────────────────┐                                          │
-│   │  ADSP (Audio    │ ← Firmware (adsp.mbn)                    │
-│   │  DSP Processor) │                                          │
+│   │  ADSP（音频     │ ← 固件 (adsp.mbn)                        │
+│   │  DSP 处理器）   │                                          │
 │   └────────┬────────┘                                          │
 │            │                                                    │
 │            ▼                                                    │
 │   ┌─────────────────┐      ┌───────────────┐                   │
-│   │  LPASS (Low     │      │  SoundWire    │                   │
-│   │  Power Audio    │◄────►│  Controllers  │                   │
-│   │  SubSystem)     │      │  (swr0, swr1) │                   │
+│   │  LPASS（低功耗  │      │  SoundWire    │                   │
+│   │  音频子系统）   │◄────►│  控制器       │                   │
+│   │                 │      │  (swr0, swr1) │                   │
 │   └────────┬────────┘      └───────────────┘                   │
 │            │                       │                            │
 │            ▼                       ▼                            │
 │   ┌─────────────────────────────────────────┐                  │
-│   │           PM4125 PMIC Codec             │                  │
+│   │           PM4125 PMIC 编解码器          │                  │
 │   │  ┌─────────────┐   ┌─────────────┐     │                  │
-│   │  │ TX (Record) │   │ RX (Play)   │     │                  │
+│   │  │ TX（录音）  │   │ RX（播放）  │     │                  │
 │   │  │ - AMIC1     │   │ - HPH_L     │     │                  │
 │   │  │ - AMIC2  ◄──┼───┼── HPH_R     │     │                  │
-│   │  │ - AMIC3     │   │ - LO (Line) │     │                  │
+│   │  │ - AMIC3     │   │ - LO（线路）│     │                  │
 │   │  │ - DMIC      │   └─────────────┘     │                  │
 │   │  └─────────────┘                       │                  │
 │   └─────────────────────────────────────────┘                  │
@@ -44,61 +44,61 @@ The Arduino UNO Q uses the **PM4125 PMIC integrated audio codec** for analog aud
              ▼                       ▼
       ┌──────────────┐        ┌──────────────┐
       │   JMISC      │        │   JMISC      │
-      │ (MIC pins)   │        │ (HPH pins)   │
+      │（MIC 引脚）  │        │（HPH 引脚）  │
       └──────┬───────┘        └──────┬───────┘
              │                       │
              ▼                       ▼
       ┌──────────────┐        ┌──────────────┐
       │  Zephyria    │        │  Zephyria    │
       │  Shield MIC  │        │  Shield HPH  │
-      │  Connector   │        │  Connector   │
+      │  连接器      │        │  连接器      │
       └──────────────┘        └──────────────┘
 ```
 
 ---
 
-## Shield Pin Mapping
+## 扩展板引脚映射
 
-### Microphone Connector
+### 麦克风连接器
 
-| MIC Pin | Signal | JMISC Pin | PM4125 Function | Description |
+| MIC 引脚 | 信号 | JMISC 引脚 | PM4125 功能 | 说明 |
 |---------|--------|-----------|-----------------|-------------|
-| 1 | MIC2_INM | 31 | AMIC2 Negative | Differential mic input (-) |
-| 2 | MIC2_INP | 29 (RC filter) | AMIC2 Positive | Differential mic input (+) |
-| 3 | MIC2_BIAS | 33 (RC filter) | MIC BIAS2 | Mic bias voltage (1.8V) |
+| 1 | MIC2_INM | 31 | AMIC2 负端 | 差分麦克风输入 (-) |
+| 2 | MIC2_INP | 29（RC 滤波器） | AMIC2 正端 | 差分麦克风输入 (+) |
+| 3 | MIC2_BIAS | 33（RC 滤波器） | MIC BIAS2 | 麦克风偏置电压 (1.8V) |
 
-### Headphone Connector
+### 耳机连接器
 
-| HPH Pin | Signal | JMISC Pin | PM4125 Function | Description |
+| HPH 引脚 | 信号 | JMISC 引脚 | PM4125 功能 | 说明 |
 |---------|--------|-----------|-----------------|-------------|
-| 1 | HPH_REF | 40 | Ground Reference | Headphone ground |
-| 2 | HPH_L | 36 | HPH_L | Left channel output |
-| 3 | HPH_R | 38 | HPH_R | Right channel output |
+| 1 | HPH_REF | 40 | 接地参考 | 耳机地线 |
+| 2 | HPH_L | 36 | HPH_L | 左声道输出 |
+| 3 | HPH_R | 38 | HPH_R | 右声道输出 |
 
 ---
 
-## Current Device Tree Configuration
+## 当前设备树配置
 
-### PM4125 Codec Node
+### PM4125 编解码器节点
 
-Located in SPMI PMIC block:
+位于 SPMI PMIC 块中：
 
 ```dts
 codec {
     compatible = "qcom,pm4125-codec";
 
-    /* Power supplies */
-    vdd-io-supply = <&vreg_l3a>;       /* I/O voltage */
-    vdd-cp-supply = <&vreg_l5a>;       /* Charge pump */
-    vdd-pa-vpos-supply = <&vreg_l5a>;  /* Power amplifier */
-    vdd-mic-bias-supply = <&vreg_l4a>; /* Mic bias source */
+    /* 电源 */
+    vdd-io-supply = <&vreg_l3a>;       /* I/O 电压 */
+    vdd-cp-supply = <&vreg_l5a>;       /* 电荷泵 */
+    vdd-pa-vpos-supply = <&vreg_l5a>;  /* 功率放大器 */
+    vdd-mic-bias-supply = <&vreg_l4a>; /* 麦克风偏置源 */
 
-    /* Mic bias voltages (all 1.8V = 0x1b7740 µV) */
+    /* 麦克风偏置电压（均为 1.8V = 0x1b7740 µV） */
     qcom,micbias1-microvolt = <1800000>;
     qcom,micbias2-microvolt = <1800000>;
     qcom,micbias3-microvolt = <1800000>;
 
-    /* SoundWire device references */
+    /* SoundWire 设备引用 */
     qcom,rx-device = <&pm4125_rx>;
     qcom,tx-device = <&pm4125_tx>;
 
@@ -107,7 +107,7 @@ codec {
 };
 ```
 
-### Sound Card Node
+### 声卡节点
 
 ```dts
 sound {
@@ -117,19 +117,19 @@ sound {
     pinctrl-0 = <&lpass_rx_swr_active>;
     pinctrl-names = "default";
 
-    /* Audio routing: Connect PM4125 outputs to inputs */
+    /* 音频路由：将 PM4125 输出连接至输入 */
     audio-routing =
-        "IN1_HPHL", "HPHL_OUT",   /* Headphone Left */
-        "IN2_HPHR", "HPHR_OUT",   /* Headphone Right */
-        "AMIC2", "MIC BIAS2";     /* Mic 2 with bias */
+        "IN1_HPHL", "HPHL_OUT",   /* 耳机左声道 */
+        "IN2_HPHR", "HPHR_OUT",   /* 耳机右声道 */
+        "AMIC2", "MIC BIAS2";     /* 带偏置的麦克风 2 */
 
-    /* Multimedia playback DAI links */
+    /* 多媒体播放 DAI 链路 */
     mm1-dai-link { link-name = "MultiMedia1"; ... };
     mm2-dai-link { link-name = "MultiMedia2"; ... };
     mm3-dai-link { link-name = "MultiMedia3"; ... };
     mm4-dai-link { link-name = "MultiMedia4"; ... };
 
-    /* Headphone playback */
+    /* 耳机播放 */
     hph-playback-dai-link {
         link-name = "HPH Playback";
         cpu { sound-dai = <&q6apm 0x71>; };
@@ -139,7 +139,7 @@ sound {
                              &rxmacro 0x00>; };
     };
 
-    /* Headphone/Mic capture */
+    /* 耳机/麦克风采集 */
     hph-capture-dai-link {
         link-name = "HP Capture";
         cpu { sound-dai = <&q6apm 0x78>; };
@@ -149,7 +149,7 @@ sound {
                              &txmacro 0x00>; };
     };
 
-    /* HDMI audio (via ANX7625 USB-C) */
+    /* HDMI 音频（通过 ANX7625 USB-C） */
     hdmi-i2s-dai-link {
         link-name = "HDMI/I2S Playback";
         ...
@@ -159,175 +159,175 @@ sound {
 
 ---
 
-## Audio Should Already Work!
+## 音频应已可以工作！
 
-Based on the existing DTB configuration:
+根据现有 DTB 配置：
 
-1. **Headphone output** is configured via `hph-playback-dai-link`
-2. **Microphone input** is configured via `hph-capture-dai-link` using AMIC2
-3. **Audio routing** maps AMIC2 to MIC BIAS2 (matches shield wiring)
+1. **耳机输出**通过 `hph-playback-dai-link` 配置
+2. **麦克风输入**通过 `hph-capture-dai-link` 配置，并使用 AMIC2
+3. **音频路由**将 AMIC2 映射至 MIC BIAS2（与扩展板布线一致）
 
-The shield's MIC2 and HPH pins connect directly to PM4125 pins, so **no DTS changes should be required**.
+扩展板的 MIC2 和 HPH 引脚直接连接至 PM4125 引脚，因此**应该无需更改 DTS**。
 
 ---
 
-## Testing Audio
+## 测试音频
 
-### Check Audio Devices
+### 检查音频设备
 
 ```bash
-# List sound cards
+# 列出声卡
 cat /proc/asound/cards
 
-# List PCM devices
+# 列出 PCM 设备
 aplay -l
 arecord -l
 
-# Check ALSA controls
+# 检查 ALSA 控件
 amixer -c 0 contents
 ```
 
-### Test Headphone Output
+### 测试耳机输出
 
 ```bash
-# Install audio tools
+# 安装音频工具
 sudo apt install alsa-utils sox
 
-# Generate test tone
+# 生成测试音调
 speaker-test -c 2 -t sine -f 440
 
-# Play audio file
+# 播放音频文件
 aplay -D hw:0,0 test.wav
 
-# Or using PulseAudio/PipeWire
+# 或使用 PulseAudio/PipeWire
 paplay test.wav
 ```
 
-### Test Microphone Input
+### 测试麦克风输入
 
 ```bash
-# Record 5 seconds of audio
+# 录制 5 秒音频
 arecord -d 5 -f cd -t wav recording.wav
 
-# Record using specific device
+# 使用指定设备录音
 arecord -D hw:0,0 -d 5 -f cd recording.wav
 
-# Monitor microphone in real-time
+# 实时监听麦克风
 arecord -f cd | aplay
 ```
 
-### Adjust Volumes
+### 调整音量
 
 ```bash
-# Open ALSA mixer
+# 打开 ALSA 混音器
 alsamixer
 
-# Or set specific controls
+# 或设置指定控件
 amixer -c 0 set 'Headphone' 80%
 amixer -c 0 set 'Mic' 80%
 
-# Enable mic bias (may be needed)
+# 启用麦克风偏置（可能需要）
 amixer -c 0 set 'MIC BIAS2' on
 ```
 
 ---
 
-## Troubleshooting
+## 故障排查
 
-### No Sound Devices Found
+### 未发现声音设备
 
-1. **Check ADSP firmware**:
+1. **检查 ADSP 固件：**
    ```bash
    ls -la /lib/firmware/qcom/qrb2210/adsp*
    dmesg | grep -i adsp
    ```
 
-2. **Check audio modules loaded**:
+2. **检查已加载的音频模块：**
    ```bash
    lsmod | grep -i snd
    lsmod | grep -i soundwire
    ```
 
-3. **Check remoteproc status**:
+3. **检查 remoteproc 状态：**
    ```bash
    cat /sys/class/remoteproc/remoteproc*/state
    cat /sys/class/remoteproc/remoteproc*/name
    ```
 
-### No Sound from Headphones
+### 耳机没有声音
 
-1. **Check routing**:
+1. **检查路由：**
    ```bash
    amixer -c 0 | grep -A2 "HPH\|Headphone"
    ```
 
-2. **Check if muted**:
+2. **检查是否已静音：**
    ```bash
    amixer -c 0 set 'Headphone' unmute
    ```
 
-3. **Check physical connection** - verify shield connector is properly seated
+3. **检查物理连接** - 确认扩展板连接器已正确插接
 
-### Microphone Not Working
+### 麦克风不工作
 
-1. **Enable mic bias**:
+1. **启用麦克风偏置：**
    ```bash
    amixer -c 0 set 'MIC BIAS2' on
    ```
 
-2. **Check capture controls**:
+2. **检查采集控件：**
    ```bash
    amixer -c 0 | grep -A2 "Mic\|AMIC"
    ```
 
-3. **Verify wiring** - check shield MIC connector to JMISC
+3. **检查布线** - 检查扩展板 MIC 连接器与 JMISC 之间的连接
 
-### ADSP Not Loading
+### ADSP 未加载
 
-Check for missing firmware:
+检查是否缺少固件：
 ```bash
-# Required firmware files
+# 所需固件文件
 ls -la /lib/firmware/qcom/qrb2210/
-# Should include: adsp.mbn, adsp*.mdt
+# 应包含：adsp.mbn, adsp*.mdt
 ```
 
 ---
 
-## Modifying Audio Configuration (If Needed)
+## 修改音频配置（如有需要）
 
-### Change Mic Bias Voltage
+### 更改麦克风偏置电压
 
-If your microphone requires different bias voltage (e.g., 2.7V for some electret mics):
+如果麦克风需要不同的偏置电压（例如某些驻极体麦克风需要 2.7V）：
 
 ```dts
 codec {
     compatible = "qcom,pm4125-codec";
-    /* ... other properties ... */
+    /* ... 其他属性 ... */
 
-    /* Change mic bias from 1.8V to 2.7V */
+    /* 将麦克风偏置从 1.8V 改为 2.7V */
     qcom,micbias2-microvolt = <2700000>;
 };
 ```
 
-### Use Different Microphone Input
+### 使用其他麦克风输入
 
-If using AMIC1 or AMIC3 instead of AMIC2:
+如果使用 AMIC1 或 AMIC3 代替 AMIC2：
 
 ```dts
 sound {
     /* ... */
 
-    /* Change from AMIC2 to AMIC1 */
+    /* 从 AMIC2 改为 AMIC1 */
     audio-routing =
         "IN1_HPHL", "HPHL_OUT",
         "IN2_HPHR", "HPHR_OUT",
-        "AMIC1", "MIC BIAS1";  /* Changed from AMIC2, MIC BIAS2 */
+        "AMIC1", "MIC BIAS1";  /* 已从 AMIC2, MIC BIAS2 更改 */
 };
 ```
 
-### Add Line Output
+### 添加线路输出
 
-If shield has line output in addition to headphones:
+如果扩展板除耳机输出外还有线路输出：
 
 ```dts
 sound {
@@ -335,50 +335,50 @@ sound {
         "IN1_HPHL", "HPHL_OUT",
         "IN2_HPHR", "HPHR_OUT",
         "AMIC2", "MIC BIAS2",
-        "IN3_LO", "LO_OUT";  /* Add line output */
+        "IN3_LO", "LO_OUT";  /* 添加线路输出 */
 };
 ```
 
 ---
 
-## Audio Routing Reference
+## 音频路由参考
 
-### PM4125 Output Pins (RX/Playback)
+### PM4125 输出引脚（RX/播放）
 
-| Output | Signal | Description |
+| 输出 | 信号 | 说明 |
 |--------|--------|-------------|
-| HPHL_OUT | HPH_L | Headphone Left |
-| HPHR_OUT | HPH_R | Headphone Right |
-| LO_OUT | LO | Line Out |
-| EAR_OUT | EAR | Earpiece (not used on shield) |
+| HPHL_OUT | HPH_L | 耳机左声道 |
+| HPHR_OUT | HPH_R | 耳机右声道 |
+| LO_OUT | LO | 线路输出 |
+| EAR_OUT | EAR | 听筒（扩展板未使用） |
 
-### PM4125 Input Pins (TX/Capture)
+### PM4125 输入引脚（TX/采集）
 
-| Input | Signal | Description |
+| 输入 | 信号 | 说明 |
 |-------|--------|-------------|
-| AMIC1 | MIC1 | Analog Mic 1 (with BIAS1) |
-| AMIC2 | MIC2 | Analog Mic 2 (with BIAS2) - **Shield uses this** |
-| AMIC3 | MIC3 | Analog Mic 3 (with BIAS3) |
-| DMIC | DMIC | Digital Mic (I2S interface) |
+| AMIC1 | MIC1 | 模拟麦克风 1（带 BIAS1） |
+| AMIC2 | MIC2 | 模拟麦克风 2（带 BIAS2）- **扩展板使用此项** |
+| AMIC3 | MIC3 | 模拟麦克风 3（带 BIAS3） |
+| DMIC | DMIC | 数字麦克风（I2S 接口） |
 
 ---
 
-## Required Kernel Modules
+## 所需内核模块
 
-These should already be built into the Arduino kernel:
+这些模块应已内置于 Arduino 内核中：
 
-| Module | Purpose |
+| 模块 | 用途 |
 |--------|---------|
-| `snd_soc_qcom_common` | Qualcomm sound core |
-| `snd_soc_sm8250` | SM8250/QCM2290 audio |
-| `snd_soc_qcom_sdw` | SoundWire support |
-| `snd_soc_wcd_mbhc` | Headset detection |
+| `snd_soc_qcom_common` | Qualcomm 声音核心 |
+| `snd_soc_sm8250` | SM8250/QCM2290 音频 |
+| `snd_soc_qcom_sdw` | SoundWire 支持 |
+| `snd_soc_wcd_mbhc` | 耳机检测 |
 | `snd_soc_wcd_swr` | WCD SoundWire |
 
 ---
 
-## Version History
+## 版本历史
 
-| Version | Date | Changes |
+| 版本 | 日期 | 更改 |
 |---------|------|---------|
-| 1.0 | Feb 2026 | Initial audio integration guide |
+| 1.0 | 2026 年 2 月 | 初始音频集成指南 |

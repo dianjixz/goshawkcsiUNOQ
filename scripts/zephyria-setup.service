@@ -1,5 +1,5 @@
 [Unit]
-Description=Zephyria Shield — configure display, audio, cameras
+Description=Zephyria Shield - 配置显示、音频和摄像头
 After=multi-user.target sound.target
 Wants=sound.target
 

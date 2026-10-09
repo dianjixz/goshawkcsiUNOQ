@@ -23,10 +23,10 @@
                 regulator-boot-on;
 	};
 
-	/* Freenove DSI display — always-on 3.3V supply.
-	 * DISP_EN (DSI pin 11, JMISC 11, STM32 PI4, Zephyr GPIO 35): wire to 3V3 or Zephyr HIGH.
-	 * DISP_RESET (DSI pin 12, JMISC 13, STM32 PI6, Zephyr GPIO 37): RC reset or wire to 3V3.
-	 * Zephyr sketch cam_dual_io.ino does: EN=HIGH, RST=LOW, delay(100), RST=HIGH. */
+	/* Freenove DSI 显示屏：常开 3.3V 电源。
+	 * DISP_EN（DSI 引脚 11、JMISC 11、STM32 PI4、Zephyr GPIO 35）：接 3V3 或由 Zephyr 输出高电平。
+	 * DISP_RESET（DSI 引脚 12、JMISC 13、STM32 PI6、Zephyr GPIO 37）：使用 RC 复位或接 3V3。
+	 * Zephyr 草图 cam_dual_io.ino 执行：EN=HIGH、RST=LOW、延时 100 ms、RST=HIGH。 */
 	panel-pwr {
 		phandle = <0x101>;
 		compatible = "regulator-fixed";
@@ -35,10 +35,10 @@
 		regulator-boot-on;
 	};
 
-	/* Freenove 4.3" 800x480 LCD panel connected to TC358762 DPI output.
-	 * Uses panel-dpi driver with explicit display timings.
-	 * Timings match the Seiko 43WVF1G / RPi TC358762 ecosystem:
-	 *   33.3 MHz pixel clock, 800x480, DE active high. */
+	/* 连接到 TC358762 DPI 输出的 Freenove 4.3 英寸 800x480 LCD 面板。
+	 * 使用带明确显示时序的 panel-dpi 驱动。
+	 * 时序与 Seiko 43WVF1G / RPi TC358762 生态系统一致：
+	 *   33.3 MHz 像素时钟，800x480，DE 高电平有效。 */
 	lcd-panel {
 		compatible = "panel-dpi";
 		status = "okay";
@@ -1806,7 +1806,7 @@
 					analogix,lane1-swing = <0x14546474>;
 					#sound-dai-cells = <0x01>;
 					pinctrl-0 = <0x49 0x4a>;
-					status = "disabled"; /* DSI bus used by TC358762 panel — boot imola-camera-shield.dtb to restore HDMI */
+					status = "disabled"; /* DSI 总线由 TC358762 面板使用；引导 imola-camera-shield.dtb 可恢复 HDMI */
 					phandle = <0x8e>;
 
 					connector {
@@ -2378,15 +2378,15 @@
 					};
 				};
 
-				/* Goodix GT911 capacitive touch controller (Freenove 4.3" display).
-				 * Connected via CCI I2C bus 0 through PCA9306 level-shifter on shield.
+				/* Goodix GT911 电容触摸控制器（Freenove 4.3 英寸显示屏）。
+				 * 通过扩展板上的 PCA9306 电平转换器连接到 CCI I2C 总线 0。
 				 * CCI_I2C_SCL0 -> JMEDIA pin 51 -> gpio22
 				 * CCI_I2C_SDA0 -> JMEDIA pin 53 -> gpio23
-				 * INT and RESET are on JMISC (STM32 domain) — not Linux GPIOs.
-				 * GT911 shares RESET with DISP_RESET: DSI pin 12 -> JMISC 13 -> STM32 PI6 (Zephyr GPIO 37).
-				 * The GT911 latches its I2C address on the RESET rising edge (ADDR pin level).
-				 * Use cam_dual_io.ino Zephyr sketch or hardware RC reset for proper sequencing.
-				 * Driver operates in polling mode without interrupt GPIO. */
+				 * INT 和 RESET 位于 JMISC（STM32 域），不是 Linux GPIO。
+				 * GT911 与 DISP_RESET 共用 RESET：DSI 引脚 12 -> JMISC 13 -> STM32 PI6（Zephyr GPIO 37）。
+				 * GT911 在 RESET 上升沿根据 ADDR 引脚电平锁存其 I2C 地址。
+				 * 使用 cam_dual_io.ino Zephyr 草图或硬件 RC 复位以确保正确时序。
+				 * 驱动在没有中断 GPIO 的情况下以轮询模式运行。 */
 				touchscreen@5d {
 					compatible = "goodix,gt911";
 					reg = <0x5d>;
@@ -2562,8 +2562,8 @@
 						reg = <0x01>;
 
 						endpoint {
-							/* Redirected from ANX7625 (0x7a) to Freenove panel_in (0x100).
-							 * Lane count reduced from 4 to 2 — shield only routes L0 and L1. */
+							/* 从 ANX7625 (0x7a) 重定向到 Freenove panel_in (0x100)。
+							 * 通道数从 4 减至 2；扩展板仅连接 L0 和 L1。 */
 							remote-endpoint = <0x100>;
 							data-lanes = <0x00 0x01>;
 							phandle = <0x4d>;
@@ -2571,11 +2571,11 @@
 					};
 				};
 
-				/* Toshiba TC358762 DSI-to-DPI bridge — Freenove 4.3" display (800x480).
-				 * Control pins are on JMISC (STM32 domain) — not Linux GPIOs:
-				 *   DISP_EN    (DSI pin 11, JMISC 11, Zephyr GPIO 35): wire to 3V3
-				 *   DISP_RESET (DSI pin 12, JMISC 13, Zephyr GPIO 37): RC reset or 3V3
-				 * Or use Zephyr sketch cam_dual_io.ino for proper reset sequence. */
+				/* Toshiba TC358762 DSI 转 DPI 桥接器，用于 Freenove 4.3 英寸显示屏（800x480）。
+				 * 控制引脚位于 JMISC（STM32 域），不是 Linux GPIO：
+				 *   DISP_EN    （DSI 引脚 11、JMISC 11、Zephyr GPIO 35）：接 3V3
+				 *   DISP_RESET （DSI 引脚 12、JMISC 13、Zephyr GPIO 37）：RC 复位或接 3V3
+				 * 也可使用 Zephyr 草图 cam_dual_io.ino 执行正确的复位时序。 */
 				panel@0 {
 					compatible = "toshiba,tc358762";
 					reg = <0x00>;
@@ -2589,7 +2589,7 @@
 
 						port@0 {
 							reg = <0x00>;
-							/* DSI input from msm_dsi */
+							/* 来自 msm_dsi 的 DSI 输入 */
 							endpoint {
 								remote-endpoint = <0x4d>;
 								phandle = <0x100>;
@@ -2598,7 +2598,7 @@
 
 						port@1 {
 							reg = <0x01>;
-							/* DPI output to downstream LCD panel */
+							/* 输出到下游 LCD 面板的 DPI 信号 */
 							endpoint {
 								remote-endpoint = <0x104>;
 								phandle = <0x105>;
@@ -3203,7 +3203,7 @@
 		pinctrl-names = "default";
 
 		key-volume-up {
-			label = "Volume Up";
+			label = "音量加";
 			linux,code = <0x73>;
 			gpios = <0x1a 0x60 0x01>;
 			debounce-interval = <0x0f>;
@@ -3212,7 +3212,7 @@
 		};
 
 		key-volume-down {
-			label = "Volume Down";
+			label = "音量减";
 			linux,code = <0x72>;
 			gpios = <0x1a 0x24 0x01>;
 			debounce-interval = <0x0f>;
@@ -3387,8 +3387,8 @@
 			};
 		};
 
-		/* ANX7625 HDMI audio — disabled because ANX7625 is disabled for DSI panel.
-		   Restore when booting imola-camera-shield.dtb for HDMI output. */
+		/* ANX7625 HDMI 音频：由于 DSI 面板禁用了 ANX7625，此处也禁用。
+		   使用 imola-camera-shield.dtb 引导以输出 HDMI 时需恢复。 */
 		hdmi-i2s-dai-link {
 			link-name = "HDMI/I2S Playback";
 			status = "disabled";

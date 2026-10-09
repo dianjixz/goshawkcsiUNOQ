@@ -1,42 +1,42 @@
 #!/bin/bash
 #
-# Cross-compile DSI Display Modules on a Linux host PC for Arduino UNO Q
+# 在 Linux 主机 PC 上为 Arduino UNO Q 交叉编译 DSI 显示模块
 #
-# This script automates the full cross-compilation flow on an x86-64 host:
-#   1. Install aarch64 cross-compiler
-#   2. Clone Arduino's Linux kernel source (shallow, matching tag)
-#   3. Configure the kernel to enable needed DRM panel configs
-#   4. Build headers and module scaffolding (no full kernel build)
-#   5. Call build-dsi-modules.sh to build each .ko
-#   6. Package .ko files for scp to the target
+# 此脚本在 x86-64 主机上自动完成整个交叉编译流程：
+#   1. 安装 aarch64 交叉编译器
+#   2. 浅克隆 Arduino Linux 内核源码（匹配相应标签）
+#   3. 配置内核以启用所需的 DRM 面板配置项
+#   4. 构建头文件和模块框架（不完整构建内核）
+#   5. 调用 build-dsi-modules.sh 构建各个 .ko
+#   6. 打包 .ko 文件，以便通过 scp 传至目标设备
 #
-# Requirements (Ubuntu/Debian host):
+# 要求（Ubuntu/Debian 主机）：
 #   sudo apt install gcc-aarch64-linux-gnu make bc flex bison \
 #                    libssl-dev libelf-dev python3 rsync
 #
-# Usage:
+# 用法：
 #   ./cross-build-dsi-modules.sh [module|all]
 #
-# After running:
+# 运行后：
 #   scp /tmp/dsi-modules-cross/*.ko user@uno-q:/tmp/
-#   # On UNO Q:
+#   # 在 UNO Q 上：
 #   sudo cp /tmp/*.ko /lib/modules/$(uname -r)/kernel/drivers/gpu/drm/bridge/
 #   sudo depmod -a && sudo modprobe tc358762
 #
 
 set -e
 
-# ── Configuration ─────────────────────────────────────────────────────────────
+# ── 配置 ──────────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Arduino Linux kernel source repository
-# Kernel running on device: 6.16.7-g0dd6551ae96b
+# Arduino Linux 内核源码仓库
+# 设备上运行的内核：6.16.7-g0dd6551ae96b
 # (uname -r: Linux Zephyria4GB 6.16.7-g0dd6551ae96b #1 SMP PREEMPT Tue Sep 23 12:46:06 UTC 2025 aarch64)
 ARDUINO_LINUX_REPO="${ARDUINO_LINUX_REPO:-https://github.com/arduino/linux-qcom.git}"
 
-# Kernel version string running on target (get with: ssh uno-q uname -r)
-# Override with: TARGET_KERNEL=6.16.7-g0dd6551ae96b ./cross-build-dsi-modules.sh all
+# 目标设备运行的内核版本字符串（获取方式：ssh uno-q uname -r）
+# 覆盖方式：TARGET_KERNEL=6.16.7-g0dd6551ae96b ./cross-build-dsi-modules.sh all
 TARGET_KERNEL="${TARGET_KERNEL:-6.16.7-g0dd6551ae96b}"
 
 CROSS_DIR="/tmp/dsi-modules-cross"
@@ -54,10 +54,10 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 step()  { echo -e "\n${BOLD}${BLUE}▶ $*${NC}"; }
 
-# ── Checks ────────────────────────────────────────────────────────────────────
+# ── 检查 ──────────────────────────────────────────────────────────────────────
 
 check_host_tools() {
-    step "Checking host tools"
+    step "检查主机工具"
 
     local missing=()
     for tool in make git curl "${CROSS_COMPILE}gcc" bc flex bison; do
@@ -68,47 +68,46 @@ check_host_tools() {
 
     if [ ${#missing[@]} -gt 0 ]; then
         echo ""
-        warn "Missing tools: ${missing[*]}"
+        warn "缺少工具：${missing[*]}"
         echo ""
-        echo "  Install with:"
+        echo "  使用以下命令安装："
         echo "    sudo apt-get install -y \\"
         echo "      build-essential gcc-aarch64-linux-gnu \\"
         echo "      bc flex bison libssl-dev libelf-dev python3 git curl"
         echo ""
-        error "Install missing tools and retry."
+        error "请安装缺少的工具后重试。"
     fi
 
-    info "All host tools available."
+    info "所有主机工具均可用。"
 }
 
-# ── Kernel source ─────────────────────────────────────────────────────────────
+# ── 内核源码 ──────────────────────────────────────────────────────────────────
 
 clone_or_update_kernel() {
-    step "Preparing kernel source"
+    step "准备内核源码"
 
     mkdir -p "$CROSS_DIR" "$OUTPUT_DIR"
 
     if [ -d "${KERNEL_SRC}/.git" ]; then
-        info "Kernel source already present at ${KERNEL_SRC}"
-        info "To refresh: rm -rf ${KERNEL_SRC} and re-run"
+        info "${KERNEL_SRC} 中已有内核源码"
+        info "如需刷新：rm -rf ${KERNEL_SRC}，然后重新运行"
         return 0
     fi
 
-    info "Cloning Arduino Linux kernel (shallow)..."
+    info "正在浅克隆 Arduino Linux 内核..."
     info "  ${ARDUINO_LINUX_REPO}"
 
-    # Shallow clone saves time and disk space
+    # 浅克隆可节省时间和磁盘空间
     git clone --depth=1 "$ARDUINO_LINUX_REPO" "$KERNEL_SRC"
 }
 
 configure_kernel() {
-    step "Configuring kernel (arduino/linux-qcom defconfig + DSI panel modules)"
+    step "配置内核（arduino/linux-qcom defconfig + DSI 面板模块）"
 
     cd "$KERNEL_SRC"
 
-    # arduino/linux-qcom ships a single "defconfig" covering all supported
-    # Qualcomm platforms (including QRB2210/Imola). Use it directly.
-    # Try named variants first for forward-compatibility.
+    # arduino/linux-qcom 提供一个覆盖所有受支持高通平台（包括 QRB2210/Imola）
+    # 的 "defconfig"，直接使用即可。为保持向前兼容，先尝试具名变体。
     local defconfig=""
     for candidate in imola_defconfig qrb2210_defconfig qcom_defconfig defconfig; do
         if [ -f "arch/arm64/configs/${candidate}" ]; then
@@ -117,19 +116,19 @@ configure_kernel() {
         fi
     done
     if [ -z "$defconfig" ]; then
-        error "No defconfig found in arch/arm64/configs/. Check the repo."
+        error "在 arch/arm64/configs/ 中未找到 defconfig，请检查仓库。"
     fi
-    info "Using defconfig: $defconfig"
+    info "使用 defconfig：$defconfig"
     make ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" "$defconfig"
 
-    # Enable DSI panel drivers as modules
+    # 将 DSI 面板驱动启用为模块
     local configs=(
         "CONFIG_DRM_TOSHIBA_TC358762=m"
         "CONFIG_DRM_PANEL_ILITEK_ILI9881C=m"
         "CONFIG_DRM_PANEL_SITRONIX_ST7701=m"
         "CONFIG_DRM_PANEL_HIMAX_HX8394=m"
         "CONFIG_DRM_PANEL_ORISETECH_OTM8009A=m"
-        # Dependencies (ensure they're built-in or module)
+        # 依赖项（确保内置或编译为模块）
         "CONFIG_DRM_MIPI_DSI=y"
         "CONFIG_BACKLIGHT_CLASS_DEVICE=y"
         "CONFIG_DRM_KMS_HELPER=y"
@@ -141,27 +140,25 @@ configure_kernel() {
 
     make ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" olddefconfig
 
-    info "Kernel configured with DSI panel drivers as modules."
+    info "内核已配置为将 DSI 面板驱动编译成模块。"
 }
 
 prepare_kernel_headers() {
-    step "Preparing kernel headers and module scaffolding"
+    step "准备内核头文件和模块框架"
 
     cd "$KERNEL_SRC"
 
-    # Build the minimum scaffolding needed to compile out-of-tree modules.
-    # Note: 'modules_prepare' does NOT produce Module.symvers — that file is
-    # only generated by a full 'make modules'.  Without it, modpost reports
-    # every kernel symbol as "undefined", which would abort the build.
+    # 构建编译树外模块所需的最小框架。
+    # 注意：'modules_prepare' 不会生成 Module.symvers；该文件仅由完整的
+    # 'make modules' 生成。缺少它时，modpost 会将每个内核符号报告为
+    # "undefined"，从而中止构建。
     #
-    # We work around this by:
-    #   1. Creating an empty Module.symvers so modpost doesn't abort on the
-    #      missing-file warning.
-    #   2. Passing KBUILD_MODPOST_WARN=1 when building each .ko so that
-    #      remaining symbol warnings become non-fatal.
+    # 解决方法如下：
+    #   1. 创建空的 Module.symvers，使 modpost 不因文件缺失警告而中止。
+    #   2. 构建各个 .ko 时传入 KBUILD_MODPOST_WARN=1，使其余符号警告不再致命。
     #
-    # The "unresolved" symbols (mipi_dsi_*, drm_bridge_*, etc.) are all
-    # built into the target kernel and will resolve correctly at modprobe time.
+    # 这些“未解析”符号（mipi_dsi_*、drm_bridge_* 等）均已内置于目标内核，
+    # 会在 modprobe 时正确解析。
 
     make ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
          -j"$(nproc)" scripts prepare
@@ -169,28 +166,25 @@ prepare_kernel_headers() {
     make ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
          -j"$(nproc)" modules_prepare
 
-    # Seed an empty Module.symvers to silence the missing-file warning.
-    # modpost will still warn about each individual unresolved symbol, but
-    # those are suppressed by KBUILD_MODPOST_WARN=1 at build time.
+    # 创建空的 Module.symvers，以消除文件缺失警告。modpost 仍会警告每个
+    # 未解析符号，但构建时会由 KBUILD_MODPOST_WARN=1 抑制。
     touch "${KERNEL_SRC}/Module.symvers"
 
-    info "Headers and module scaffolding ready."
+    info "头文件和模块框架已就绪。"
 }
 
-# ── Build modules ─────────────────────────────────────────────────────────────
+# ── 构建模块 ──────────────────────────────────────────────────────────────────
 
 build_all_modules() {
     local target="$1"
 
-    step "Building out-of-tree DSI modules"
+    step "构建树外 DSI 模块"
 
-    # SKIP_INSTALL=1    — do not install to host /lib/modules or run modprobe;
-    #                     .ko files are collected separately and scp'd to target.
-    # KERNEL_VERSION    — override uname -r so any host-only paths use the
-    #                     target version string, not the host's.
-    # KBUILD_MODPOST_WARN=1 — turn unresolved-symbol modpost errors into
-    #                     warnings so the .ko is produced despite missing
-    #                     Module.symvers (symbols are in the target kernel).
+    # SKIP_INSTALL=1    - 不安装到主机 /lib/modules，也不运行 modprobe；
+    #                     单独收集 .ko 文件并通过 scp 传至目标设备。
+    # KERNEL_VERSION    - 覆盖 uname -r，使主机侧路径使用目标版本而非主机版本。
+    # KBUILD_MODPOST_WARN=1 - 将 modpost 未解析符号错误转为警告，使缺少
+    #                     Module.symvers 时仍能生成 .ko（符号在目标内核中）。
     ARCH="$ARCH" \
     CROSS_COMPILE="$CROSS_COMPILE" \
     KERNEL_DIR="$KERNEL_SRC" \
@@ -200,64 +194,64 @@ build_all_modules() {
     "${SCRIPT_DIR}/build-dsi-modules.sh" "$target"
 }
 
-# ── Collect outputs ───────────────────────────────────────────────────────────
+# ── 收集输出 ──────────────────────────────────────────────────────────────────
 
 collect_modules() {
-    step "Collecting .ko files"
+    step "收集 .ko 文件"
 
     find /tmp/dsi-modules-build -name "*.ko" -exec cp {} "$OUTPUT_DIR/" \; 2>/dev/null || true
 
     if ls "$OUTPUT_DIR/"*.ko &>/dev/null; then
-        info "Modules collected in: $OUTPUT_DIR"
+        info "模块已收集到：$OUTPUT_DIR"
         ls -lh "$OUTPUT_DIR/"*.ko
     else
-        warn "No .ko files found in output dir."
+        warn "输出目录中未找到 .ko 文件。"
     fi
 }
 
-# ── Install instructions ──────────────────────────────────────────────────────
+# ── 安装说明 ──────────────────────────────────────────────────────────────────
 
 print_deploy_instructions() {
     local target_ip="${TARGET_IP:-<uno-q-ip>}"
 
     echo ""
     echo "════════════════════════════════════════════════════════════"
-    echo "  Cross-compilation complete!"
+    echo "  交叉编译完成！"
     echo "════════════════════════════════════════════════════════════"
     echo ""
-    echo "  Modules built in: ${OUTPUT_DIR}/"
+    echo "  模块构建目录：${OUTPUT_DIR}/"
     echo ""
-    echo "  Deploy to UNO Q:"
+    echo "  部署到 UNO Q："
     echo ""
-    echo "    # Copy modules to target"
+    echo "    # 将模块复制到目标设备"
     echo "    scp ${OUTPUT_DIR}/*.ko user@${target_ip}:/tmp/"
     echo ""
-    echo "    # On the UNO Q — install modules"
+    echo "    # 在 UNO Q 上安装模块"
     echo "    ssh user@${target_ip} bash << 'EOF'"
     echo "    KVER=\$(uname -r)"
-    echo "    # Bridge drivers"
+    echo "    # 桥接驱动"
     echo "    sudo mkdir -p /lib/modules/\$KVER/kernel/drivers/gpu/drm/bridge"
     echo "    sudo cp /tmp/tc358762.ko /lib/modules/\$KVER/kernel/drivers/gpu/drm/bridge/"
-    echo "    # Panel drivers"
+    echo "    # 面板驱动"
     echo "    sudo mkdir -p /lib/modules/\$KVER/kernel/drivers/gpu/drm/panel"
     echo "    for ko in ili9881c st7701 hx8394 otm8009a; do"
     echo "      [ -f /tmp/\${ko}.ko ] && sudo cp /tmp/\${ko}.ko /lib/modules/\$KVER/kernel/drivers/gpu/drm/panel/"
     echo "    done"
     echo "    sudo depmod -a"
-    echo "    sudo modprobe tc358762 || echo 'Need DT config first'"
+    echo "    sudo modprobe tc358762 || echo '需要先配置设备树'"
     echo "    EOF"
     echo ""
-    echo "  Then apply the device tree and reboot."
+    echo "  然后应用设备树并重启。"
     echo ""
 }
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── 主流程 ────────────────────────────────────────────────────────────────────
 
 TARGET="${1:-all}"
 
 echo ""
 echo "════════════════════════════════════════════════════════════"
-echo "  DSI Cross-Build for Arduino UNO Q (host: $(uname -m))"
+echo "  Arduino UNO Q DSI 交叉构建（主机：$(uname -m)）"
 echo "════════════════════════════════════════════════════════════"
 echo ""
 

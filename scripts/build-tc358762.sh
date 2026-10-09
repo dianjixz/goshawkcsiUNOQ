@@ -1,104 +1,104 @@
 #!/bin/bash
 #
-# Build TC358762 DSI-to-DPI Bridge Kernel Module for Arduino UNO Q
+# 为 Arduino UNO Q 构建 TC358762 DSI 转 DPI 桥接内核模块
 #
-# This module is required for:
-#   - Freenove 4.3" Touchscreen
-#   - Official Raspberry Pi 7" Display
-#   - WaveShare DSI displays using TC358762
+# 以下设备需要此模块：
+#   - Freenove 4.3 英寸触摸屏
+#   - 树莓派官方 7 英寸显示器
+#   - 使用 TC358762 的微雪 DSI 显示器
 #
-# Run this script ON the Arduino UNO Q
+# 请在 Arduino UNO Q 本机运行此脚本
 #
 
 set -e
 
 echo "=============================================="
-echo " TC358762 Kernel Module Builder for UNO Q"
+echo " UNO Q TC358762 内核模块构建工具"
 echo "=============================================="
 echo ""
 
-# Configuration
+# 配置
 WORK_DIR="/tmp/tc358762-build"
 KERNEL_VERSION=$(uname -r)
 MODULE_NAME="tc358762"
 
-# Color output
+# 彩色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m' # 无颜色
 
 info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# Check if running as root
+# 检查是否以 root 身份运行
 if [ "$EUID" -eq 0 ]; then
-    error "Do not run as root. Script will use sudo when needed."
+    error "请勿以 root 身份运行。脚本会在需要时使用 sudo。"
 fi
 
-# Step 1: Check prerequisites
-info "Checking prerequisites..."
+# 第 1 步：检查前置条件
+info "正在检查前置条件..."
 
 if ! command -v make &>/dev/null; then
-    warn "Installing build-essential..."
+    warn "正在安装 build-essential..."
     sudo apt update
     sudo apt install -y build-essential bc flex bison
 fi
 
-# Step 2: Check for kernel headers
-info "Checking for kernel headers..."
+# 第 2 步：检查内核头文件
+info "正在检查内核头文件..."
 
 HEADERS_DIR="/lib/modules/${KERNEL_VERSION}/build"
 if [ ! -d "$HEADERS_DIR" ]; then
-    warn "Kernel headers not found at $HEADERS_DIR"
+    warn "在 $HEADERS_DIR 中未找到内核头文件"
     echo ""
-    echo "Attempting to install kernel headers..."
+    echo "正在尝试安装内核头文件..."
 
     if ! sudo apt install -y linux-headers-${KERNEL_VERSION} 2>/dev/null; then
         echo ""
-        error "Kernel headers not available via apt.
+        error "apt 未提供内核头文件。
 
-You need to either:
-  1. Build from Arduino's kernel source (see Method 2 in RPI-DISPLAY-COMPATIBILITY.md)
-  2. Cross-compile on a host PC (faster, see Method 3)
+请选择以下一种方式：
+  1. 使用 Arduino 内核源码构建（参见 RPI-DISPLAY-COMPATIBILITY.md 中的方法 2）
+  2. 在主机 PC 上交叉编译（更快，参见方法 3）
 
-The kernel headers package for ${KERNEL_VERSION} is not in the repository."
+仓库中没有 ${KERNEL_VERSION} 的内核头文件包。"
     fi
 fi
 
-info "Kernel headers found at $HEADERS_DIR"
+info "已在 $HEADERS_DIR 中找到内核头文件"
 
-# Step 3: Create work directory
-info "Creating work directory..."
+# 第 3 步：创建工作目录
+info "正在创建工作目录..."
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 
-# Step 4: Download tc358762.c source
-info "Downloading tc358762.c source..."
+# 第 4 步：下载 tc358762.c 源码
+info "正在下载 tc358762.c 源码..."
 
-# Try arduino/linux-qcom first, fall back to upstream torvalds tree
+# 先尝试 arduino/linux-qcom，失败后改用 torvalds 上游源码树
 ARDUINO_URL="https://raw.githubusercontent.com/arduino/linux-qcom/main/drivers/gpu/drm/bridge/tc358762.c"
 UPSTREAM_URL="https://raw.githubusercontent.com/torvalds/linux/v6.16/drivers/gpu/drm/bridge/tc358762.c"
 
 if curl -fsSL "$ARDUINO_URL" -o tc358762.c 2>/dev/null; then
-    info "  Source fetched from arduino/linux-qcom"
+    info "  已从 arduino/linux-qcom 获取源码"
 elif curl -fsSL "$UPSTREAM_URL" -o tc358762.c; then
-    info "  Source fetched from torvalds/linux v6.16 (fallback)"
+    info "  已从 torvalds/linux v6.16 获取源码（后备来源）"
 else
-    error "Failed to download tc358762.c from both arduino/linux-qcom and torvalds/linux"
+    error "从 arduino/linux-qcom 和 torvalds/linux 下载 tc358762.c 均失败"
 fi
 
-# Step 5: Create Kbuild file
-info "Creating Kbuild file..."
+# 第 5 步：创建 Kbuild 文件
+info "正在创建 Kbuild 文件..."
 
 cat > Kbuild << 'EOF'
-# Kbuild file for tc358762 out-of-tree module
+# tc358762 树外模块的 Kbuild 文件
 obj-m := tc358762.o
 EOF
 
-# Step 6: Create Makefile
+# 第 6 步：创建 Makefile
 cat > Makefile << 'EOF'
 KERNEL_VERSION ?= $(shell uname -r)
 KERNEL_DIR ?= /lib/modules/$(KERNEL_VERSION)/build
@@ -117,63 +117,63 @@ install:
 .PHONY: all clean install
 EOF
 
-# Step 7: Build module
-info "Building tc358762.ko module..."
+# 第 7 步：构建模块
+info "正在构建 tc358762.ko 模块..."
 echo ""
 
 if ! make 2>&1; then
     echo ""
-    error "Module build failed. Check error messages above.
+    error "模块构建失败，请检查上方错误消息。
 
-Common issues:
-  - Missing kernel headers: install linux-headers-${KERNEL_VERSION}
-  - Kernel config mismatch: source must match running kernel
-  - Missing dependencies: check for DRM_MIPI_DSI, DRM_KMS_HELPER"
+常见问题：
+  - 缺少内核头文件：安装 linux-headers-${KERNEL_VERSION}
+  - 内核配置不匹配：源码必须与运行中的内核匹配
+  - 缺少依赖项：检查 DRM_MIPI_DSI、DRM_KMS_HELPER"
 fi
 
-# Step 8: Check module was built
+# 第 8 步：检查模块是否已构建
 if [ ! -f "tc358762.ko" ]; then
-    error "Module tc358762.ko was not created"
+    error "未生成模块 tc358762.ko"
 fi
 
-info "Module built successfully!"
+info "模块构建成功！"
 echo ""
 ls -la tc358762.ko
 echo ""
 
-# Step 9: Install module
-info "Installing module..."
+# 第 9 步：安装模块
+info "正在安装模块..."
 
 INSTALL_DIR="/lib/modules/${KERNEL_VERSION}/kernel/drivers/gpu/drm/bridge"
 sudo mkdir -p "$INSTALL_DIR"
 sudo cp tc358762.ko "$INSTALL_DIR/"
 sudo depmod -a
 
-# Step 10: Load module
-info "Loading module..."
+# 第 10 步：加载模块
+info "正在加载模块..."
 
 if sudo modprobe tc358762; then
-    info "Module loaded successfully!"
+    info "模块加载成功！"
 else
-    warn "Module load failed - may need device tree configuration first"
+    warn "模块加载失败，可能需要先配置设备树"
 fi
 
-# Step 11: Verify
+# 第 11 步：验证
 echo ""
 echo "=============================================="
-echo " Build Complete!"
+echo " 构建完成！"
 echo "=============================================="
 echo ""
-echo "Module installed to: $INSTALL_DIR/tc358762.ko"
+echo "模块已安装到：$INSTALL_DIR/tc358762.ko"
 echo ""
-echo "To verify:"
+echo "验证方法："
 echo "  lsmod | grep tc358762"
 echo "  modinfo tc358762"
 echo ""
-echo "Next steps:"
-echo "  1. Configure device tree for your display (see DSI-DISPLAY-GUIDE.md)"
-echo "  2. Reboot to apply device tree changes"
-echo "  3. Check dmesg for display initialization"
+echo "后续步骤："
+echo "  1. 为显示器配置设备树（参见 DSI-DISPLAY-GUIDE.md）"
+echo "  2. 重启以应用设备树更改"
+echo "  3. 检查 dmesg 中的显示初始化信息"
 echo ""
-echo "Build files preserved in: $WORK_DIR"
+echo "构建文件保存在：$WORK_DIR"
 echo ""

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- *  Driver for Goodix Touchscreens
+ *  Goodix 触摸屏驱动
  *
  *  Copyright (c) 2014 Red Hat Inc.
  *  Copyright (c) 2015 K. Merker <merker@debian.org>
@@ -9,8 +9,8 @@
  *
  *  2010 - 2012 Goodix Technology.
  *
- *  Polling mode patch for boards without IRQ GPIO (e.g. Arduino UNO Q
- *  with Zephyria Shield where GT911 INT is routed to STM32 domain).
+ *  为没有 IRQ GPIO 的开发板增加轮询模式（例如配有 Zephyria Shield 的
+ *  Arduino UNO Q，其 GT911 INT 连接到 STM32 域）。
  *  When client->irq == 0, uses input_setup_polling() instead of
  *  devm_request_threaded_irq().
  */
@@ -49,14 +49,14 @@
 #define GOODIX_HAVE_KEY			BIT(4)
 #define GOODIX_BUFFER_STATUS_TIMEOUT	20
 
-/* Polling interval in ms when no IRQ is available */
-#define GOODIX_POLL_INTERVAL_MS		17	/* ~60 Hz */
+/* 没有可用 IRQ 时的轮询间隔（毫秒） */
+#define GOODIX_POLL_INTERVAL_MS		17	/* 约 60 Hz */
 
 #define RESOLUTION_LOC		1
 #define MAX_CONTACTS_LOC	5
 #define TRIGGER_LOC		6
 
-/* Our special handling for GPIO accesses through ACPI is x86 specific */
+/* 通过 ACPI 访问 GPIO 的特殊处理仅适用于 x86 */
 #if defined CONFIG_X86 && defined CONFIG_ACPI
 #define ACPI_GPIO_SUPPORT
 #endif
@@ -142,7 +142,7 @@ static const struct dmi_system_id nine_bytes_report[] = {
 	{
 		/* Lenovo Yoga Book X91F / X91L */
 		.matches = {
-			/* Non exact match to match F + L versions */
+			/* 使用非精确匹配以同时匹配 F 和 L 版本 */
 			DMI_MATCH(DMI_PRODUCT_NAME, "Lenovo YB1-X91"),
 		}
 	},
@@ -151,7 +151,7 @@ static const struct dmi_system_id nine_bytes_report[] = {
 };
 
 /*
- * Those tablets have their x coordinate inverted
+ * 这些平板电脑的 X 坐标是反向的
  */
 static const struct dmi_system_id inverted_x_screen[] = {
 #if defined(CONFIG_DMI) && defined(CONFIG_X86)
@@ -167,12 +167,12 @@ static const struct dmi_system_id inverted_x_screen[] = {
 };
 
 /**
- * goodix_i2c_read - read data from a register of the i2c slave device.
+ * goodix_i2c_read - 从 I2C 从设备寄存器读取数据
  *
- * @client: i2c device.
- * @reg: the register to read from.
- * @buf: raw write data buffer.
- * @len: length of the buffer to write
+ * @client: I2C 设备
+ * @reg: 要读取的寄存器
+ * @buf: 原始数据缓冲区
+ * @len: 要读取的缓冲区长度
  */
 int goodix_i2c_read(struct i2c_client *client, u16 reg, u8 *buf, int len)
 {
@@ -201,12 +201,12 @@ int goodix_i2c_read(struct i2c_client *client, u16 reg, u8 *buf, int len)
 }
 
 /**
- * goodix_i2c_write - write data to a register of the i2c slave device.
+ * goodix_i2c_write - 向 I2C 从设备寄存器写入数据
  *
- * @client: i2c device.
- * @reg: the register to write to.
- * @buf: raw data buffer to write.
- * @len: length of the buffer to write
+ * @client: I2C 设备
+ * @reg: 要写入的寄存器
+ * @buf: 要写入的原始数据缓冲区
+ * @len: 要写入的缓冲区长度
  */
 int goodix_i2c_write(struct i2c_client *client, u16 reg, const u8 *buf, int len)
 {
@@ -263,16 +263,14 @@ static int goodix_ts_read_input_report(struct goodix_ts_data *ts, u8 *data)
 	int error;
 	u16 addr = GOODIX_READ_COOR_ADDR;
 	/*
-	 * We are going to read 1-byte header,
-	 * ts->contact_size * max(1, touch_num) bytes of coordinates
-	 * and 1-byte footer which contains the touch-key code.
+	 * 将读取 1 字节头、ts->contact_size * max(1, touch_num) 字节坐标，
+	 * 以及包含触摸按键码的 1 字节尾部。
 	 */
 	const int header_contact_keycode_size = 1 + ts->contact_size + 1;
 
 	/*
-	 * The 'buffer status' bit, which indicates that the data is valid, is
-	 * not set as soon as the interrupt is raised, but slightly after.
-	 * This takes around 10 ms to happen, so we poll for 20 ms.
+	 * 表示数据有效的“缓冲区状态”位不会在中断触发时立即置位，而会稍晚置位。
+	 * 此过程约需 10 ms，因此轮询 20 ms。
 	 */
 	max_timeout = jiffies + msecs_to_jiffies(GOODIX_BUFFER_STATUS_TIMEOUT);
 	do {
@@ -305,12 +303,11 @@ static int goodix_ts_read_input_report(struct goodix_ts_data *ts, u8 *data)
 				return 0;
 		}
 
-		usleep_range(1000, 2000); /* Poll every 1 - 2 ms */
+		usleep_range(1000, 2000); /* 每 1 至 2 ms 轮询一次 */
 	} while (time_before(jiffies, max_timeout));
 
 	/*
-	 * The Goodix panel will send spurious interrupts after a
-	 * 'finger up' event, which will always cause a timeout.
+	 * Goodix 面板会在“手指抬起”事件后发出伪中断，这必然导致超时。
 	 */
 	return -ENOMSG;
 }
@@ -468,8 +465,7 @@ static void goodix_ts_report_key(struct goodix_ts_data *ts, u8 *data)
  *
  * @ts: our goodix_ts_data pointer
  *
- * Called when the IRQ is triggered. Read the current device state, and push
- * the input events to the user space.
+ * IRQ 触发时调用。读取当前设备状态，并将输入事件推送到用户空间。
  */
 static void goodix_process_events(struct goodix_ts_data *ts)
 {
@@ -481,11 +477,11 @@ static void goodix_process_events(struct goodix_ts_data *ts)
 	if (touch_num < 0)
 		return;
 
-	/* The pen being down is always reported as a single touch */
+	/* 触控笔按下始终报告为单点触摸 */
 	if (touch_num == 1 && (point_data[1] & 0x80)) {
 		goodix_ts_report_pen_down(ts, point_data);
 		goodix_ts_release_keys(ts);
-		goto sync; /* Release any previously registered touches */
+		goto sync; /* 释放此前注册的所有触点 */
 	} else {
 		goodix_ts_report_pen_up(ts);
 	}
@@ -506,7 +502,7 @@ sync:
 }
 
 /**
- * goodix_ts_irq_handler - The IRQ handler
+ * goodix_ts_irq_handler - IRQ 处理函数
  *
  * @irq: interrupt number.
  * @dev_id: private data pointer.
@@ -574,7 +570,7 @@ static void goodix_calc_cfg_checksum_8(struct goodix_ts_data *ts)
 	check_sum = (~check_sum) + 1;
 
 	ts->config[raw_cfg_len] = check_sum;
-	ts->config[raw_cfg_len + 1] = 1; /* Set "config_fresh" bit */
+	ts->config[raw_cfg_len + 1] = 1; /* 设置 "config_fresh" 位 */
 }
 
 static int goodix_check_cfg_16(struct goodix_ts_data *ts, const u8 *cfg,
@@ -611,11 +607,11 @@ static void goodix_calc_cfg_checksum_16(struct goodix_ts_data *ts)
 	check_sum = (~check_sum) + 1;
 
 	put_unaligned_be16(check_sum, &ts->config[raw_cfg_len]);
-	ts->config[raw_cfg_len + 2] = 1; /* Set "config_fresh" bit */
+	ts->config[raw_cfg_len + 2] = 1; /* 设置 "config_fresh" 位 */
 }
 
 /**
- * goodix_check_cfg - Checks if config fw is valid
+ * goodix_check_cfg - 检查配置固件是否有效
  *
  * @ts: goodix_ts_data pointer
  * @cfg: firmware config data
@@ -634,7 +630,7 @@ static int goodix_check_cfg(struct goodix_ts_data *ts, const u8 *cfg, int len)
 }
 
 /**
- * goodix_send_cfg - Write fw config to device
+ * goodix_send_cfg - 将固件配置写入设备
  *
  * @ts: goodix_ts_data pointer
  * @cfg: config firmware to write to device
@@ -654,7 +650,7 @@ int goodix_send_cfg(struct goodix_ts_data *ts, const u8 *cfg, int len)
 
 	dev_dbg(&ts->client->dev, "Config sent successfully.");
 
-	/* Let the firmware reconfigure itself, so sleep for 10ms */
+	/* 等待 10 ms，让固件完成自我重新配置 */
 	usleep_range(10000, 11000);
 
 	return 0;
@@ -714,7 +710,7 @@ static int goodix_irq_direction_output(struct goodix_ts_data *ts, int value)
 		return goodix_pin_acpi_output_method(ts, value);
 	}
 
-	return -EINVAL; /* Never reached */
+	return -EINVAL; /* 不会执行到此处 */
 }
 
 static int goodix_irq_direction_input(struct goodix_ts_data *ts)
@@ -733,7 +729,7 @@ static int goodix_irq_direction_input(struct goodix_ts_data *ts)
 		return goodix_pin_acpi_direction_input(ts);
 	}
 
-	return -EINVAL; /* Never reached */
+	return -EINVAL; /* 不会执行到此处 */
 }
 
 int goodix_int_sync(struct goodix_ts_data *ts)
@@ -758,7 +754,7 @@ error:
 }
 
 /**
- * goodix_reset_no_int_sync - Reset device, leaving interrupt line in output mode
+ * goodix_reset_no_int_sync - 复位设备，并保持中断线为输出模式
  *
  * @ts: goodix_ts_data pointer
  */
@@ -766,7 +762,7 @@ int goodix_reset_no_int_sync(struct goodix_ts_data *ts)
 {
 	int error;
 
-	/* begin select I2C slave addr */
+	/* 开始选择 I2C 从设备地址 */
 	error = gpiod_direction_output(ts->gpiod_rst, 0);
 	if (error)
 		goto error;
@@ -805,7 +801,7 @@ error:
 }
 
 /**
- * goodix_reset - Reset device during power on
+ * goodix_reset - 上电期间复位设备
  *
  * @ts: goodix_ts_data pointer
  */
@@ -900,7 +896,7 @@ static int goodix_add_acpi_gpio_mappings(struct goodix_ts_data *ts)
 		}
 	}
 
-	/* Some devices with gpio_int_idx 0 list a third unused GPIO */
+	/* 某些 gpio_int_idx 为 0 的设备还列出了第三个未使用的 GPIO */
 	if ((ts->gpio_count == 2 || ts->gpio_count == 3) && ts->gpio_int_idx == 0) {
 		ts->irq_pin_access_method = IRQ_PIN_ACCESS_ACPI_GPIO;
 		gpio_mapping = acpi_goodix_int_first_gpios;
@@ -965,7 +961,7 @@ static int goodix_add_acpi_gpio_mappings(struct goodix_ts_data *ts)
 #endif /* CONFIG_X86 && CONFIG_ACPI */
 
 /**
- * goodix_get_gpio_config - Get GPIO config from ACPI/DT
+ * goodix_get_gpio_config - 从 ACPI/设备树获取 GPIO 配置
  *
  * @ts: goodix_ts_data pointer
  */
@@ -994,7 +990,7 @@ static int goodix_get_gpio_config(struct goodix_ts_data *ts)
 		return dev_err_probe(dev, PTR_ERR(ts->vddio), "Failed to get VDDIO regulator\n");
 
 retry_get_irq_gpio:
-	/* Get the interrupt GPIO pin number */
+	/* 获取中断 GPIO 引脚编号 */
 	gpiod = devm_gpiod_get_optional(dev, GOODIX_GPIO_INT_NAME, GPIOD_IN);
 	if (IS_ERR(gpiod))
 		return dev_err_probe(dev, PTR_ERR(gpiod), "Failed to get %s GPIO\n",
@@ -1008,7 +1004,7 @@ retry_get_irq_gpio:
 
 	ts->gpiod_int = gpiod;
 
-	/* Get the reset line GPIO pin number */
+	/* 获取复位线 GPIO 引脚编号 */
 	gpiod = devm_gpiod_get_optional(dev, GOODIX_GPIO_RST_NAME, ts->gpiod_rst_flags);
 	if (IS_ERR(gpiod))
 		return dev_err_probe(dev, PTR_ERR(gpiod), "Failed to get %s GPIO\n",
@@ -1045,11 +1041,11 @@ retry_get_irq_gpio:
 }
 
 /**
- * goodix_read_config - Read the embedded configuration of the panel
+ * goodix_read_config - 读取面板的嵌入式配置
  *
  * @ts: our goodix_ts_data pointer
  *
- * Must be called during probe
+ * 必须在探测期间调用
  */
 static void goodix_read_config(struct goodix_ts_data *ts)
 {
@@ -1112,7 +1108,7 @@ static int goodix_read_version(struct goodix_ts_data *ts)
 }
 
 /**
- * goodix_i2c_test - I2C test function to check if the device answers.
+ * goodix_i2c_test - 检查设备是否响应的 I2C 测试函数
  *
  * @client: the i2c client
  */
@@ -1134,7 +1130,7 @@ static int goodix_i2c_test(struct i2c_client *client)
 }
 
 /**
- * goodix_configure_dev - Finish device initialization
+ * goodix_configure_dev - 完成设备初始化
  *
  * @ts: our goodix_ts_data pointer
  *
@@ -1169,7 +1165,7 @@ static int goodix_configure_dev(struct goodix_ts_data *ts)
 	ts->input_dev->keycodesize = sizeof(ts->keymap[0]);
 	ts->input_dev->keycodemax = GOODIX_MAX_KEYS;
 
-	/* Capacitive Windows/Home button on some devices */
+	/* 某些设备上的电容式 Windows/Home 按键 */
 	for (i = 0; i < GOODIX_MAX_KEYS; ++i) {
 		if (i == 0)
 			ts->keymap[i] = KEY_LEFTMETA;
@@ -1185,17 +1181,17 @@ static int goodix_configure_dev(struct goodix_ts_data *ts)
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
 
 retry_read_config:
-	/* Read configuration and apply touchscreen parameters */
+	/* 读取配置并应用触摸屏参数 */
 	goodix_read_config(ts);
 
-	/* Try overriding touchscreen parameters via device properties */
+	/* 尝试通过设备属性覆盖触摸屏参数 */
 	touchscreen_parse_properties(ts->input_dev, true, &ts->prop);
 
 	if (!ts->prop.max_x || !ts->prop.max_y || !ts->max_touch_num) {
 		if (!ts->reset_controller_at_probe &&
 		    ts->irq_pin_access_method != IRQ_PIN_ACCESS_NONE) {
 			dev_info(&ts->client->dev, "Config not set, resetting controller\n");
-			/* Retry after a controller reset */
+			/* 复位控制器后重试 */
 			ts->reset_controller_at_probe = true;
 			error = goodix_reset(ts);
 			if (error)
@@ -1278,7 +1274,7 @@ retry_read_config:
 }
 
 /**
- * goodix_config_cb - Callback to finish device init
+ * goodix_config_cb - 完成设备初始化的回调函数
  *
  * @cfg: firmware config
  * @ctx: our goodix_ts_data pointer
@@ -1301,7 +1297,7 @@ static void goodix_config_cb(const struct firmware *cfg, void *ctx)
 
 		memcpy(ts->config, cfg->data, cfg->size);
 	} else if (cfg) {
-		/* send device configuration to the firmware */
+		/* 向固件发送设备配置 */
 		error = goodix_send_cfg(ts, cfg->data, cfg->size);
 		if (error)
 			goto err_release_cfg;
@@ -1348,7 +1344,7 @@ static int goodix_ts_probe(struct i2c_client *client)
 	if (error)
 		return error;
 
-	/* power up the controller */
+	/* 启动控制器电源 */
 	error = regulator_enable(ts->avdd28);
 	if (error) {
 		dev_err(&client->dev,
@@ -1373,7 +1369,7 @@ static int goodix_ts_probe(struct i2c_client *client)
 
 reset:
 	if (ts->reset_controller_at_probe) {
-		/* reset the controller */
+		/* 复位控制器 */
 		error = goodix_reset(ts);
 		if (error)
 			return error;
@@ -1383,7 +1379,7 @@ reset:
 	if (error) {
 		if (!ts->reset_controller_at_probe &&
 		    ts->irq_pin_access_method != IRQ_PIN_ACCESS_NONE) {
-			/* Retry after a controller reset */
+			/* 复位控制器后重试 */
 			ts->reset_controller_at_probe = true;
 			goto reset;
 		}
@@ -1402,7 +1398,7 @@ reset:
 	ts->chip = goodix_get_chip_data(ts->id);
 
 	if (ts->load_cfg_from_disk) {
-		/* update device config */
+		/* 更新设备配置 */
 		error = device_property_read_string(&client->dev,
 						    "goodix,config-name",
 						    &cfg_name);
@@ -1450,20 +1446,20 @@ static int goodix_suspend(struct device *dev)
 	if (ts->load_cfg_from_disk)
 		wait_for_completion(&ts->firmware_loading_complete);
 
-	/* We need gpio pins to suspend/resume */
+	/* 挂起和恢复需要使用 GPIO 引脚 */
 	if (ts->irq_pin_access_method == IRQ_PIN_ACCESS_NONE) {
 		if (client->irq)
 			disable_irq(client->irq);
 		return 0;
 	}
 
-	/* Free IRQ as IRQ pin is used as output in the suspend sequence */
+	/* 挂起时序中 IRQ 引脚用作输出，因此先释放 IRQ */
 	goodix_free_irq(ts);
 
-	/* Save reference (calibration) info if necessary */
+	/* 必要时保存参考（校准）信息 */
 	goodix_save_bak_ref(ts);
 
-	/* Output LOW on the INT pin for 5 ms */
+	/* 在 INT 引脚上输出低电平 5 ms */
 	error = goodix_irq_direction_output(ts, 0);
 	if (error) {
 		goodix_request_irq(ts);
@@ -1481,9 +1477,8 @@ static int goodix_suspend(struct device *dev)
 	}
 
 	/*
-	 * The datasheet specifies that the interval between sending screen-off
-	 * command and wake-up should be longer than 58 ms. To avoid waking up
-	 * sooner, delay 58ms here.
+	 * 数据手册规定，发送熄屏命令与唤醒之间的间隔应超过 58 ms。
+	 * 为避免过早唤醒，此处延时 58 ms。
 	 */
 	msleep(58);
 	return 0;
@@ -1503,8 +1498,7 @@ static int goodix_resume(struct device *dev)
 	}
 
 	/*
-	 * Exit sleep mode by outputting HIGH level to INT pin
-	 * for 2ms~5ms.
+	 * 在 INT 引脚输出高电平 2 至 5 ms，以退出睡眠模式。
 	 */
 	error = goodix_irq_direction_output(ts, 1);
 	if (error)

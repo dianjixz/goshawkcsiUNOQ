@@ -1,7 +1,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 
-// Using Zephyr overlay as reference
+// 参考 Zephyr 设备树叠加层
 // https://github.com/arduino/ArduinoCore-zephyr/blob/main/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.overlay
 
 // J4 
@@ -17,20 +17,20 @@
 #define DSI_GPIO_RST  37
 
 void setup() {
-  // Enabling devices
-  // Camera 0
+  // 启用设备
+  // 摄像头 0
   pinMode(CAM0_GPIO_EN, OUTPUT);
   digitalWrite(CAM0_GPIO_EN, HIGH);
   pinMode(CAM0_GPIO_LED_EN, OUTPUT);
   digitalWrite(CAM0_GPIO_LED_EN, HIGH);
   
-  // Camera 1
+  // 摄像头 1
   pinMode(CAM1_GPIO_EN, OUTPUT);
   digitalWrite(CAM1_GPIO_EN, HIGH);
   pinMode(CAM1_GPIO_LED_EN, OUTPUT);
   digitalWrite(CAM1_GPIO_LED_EN, HIGH);
 
-  // DSI display
+  // DSI 显示屏
   pinMode(DSI_GPIO_EN, OUTPUT);
   digitalWrite(DSI_GPIO_EN, HIGH);
   pinMode(DSI_GPIO_RST, OUTPUT);
@@ -43,6 +43,6 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  // 在此放置需要重复运行的主程序代码：
 
 }
